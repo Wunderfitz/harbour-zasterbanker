@@ -1,0 +1,293 @@
+/*
+    Copyright (C) 2026 Sebastian J. Wolf and other contributors
+
+    This file is part of Zaster Banker.
+
+    Zaster Banker is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    Zaster Banker is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with Zaster Banker. If not, see <http://www.gnu.org/licenses/>.
+*/
+
+#include "GwenGui.h"
+
+#include "BankingThread.h"
+
+#include <QCoreApplication>
+#include <QDebug>
+#include <QMap>
+#include <QRegExp>
+
+#include <aqbanking/banking.h>
+#include <gwenhywfar/db.h>
+#include <gwenhywfar/gui_be.h>
+#include <gwenhywfar/ssl_cert_descr.h>
+
+#include <cstring>
+
+namespace {
+
+BankingThread *bankingThread = nullptr;
+QMap<QByteArray, QByteArray> pins;
+uint32_t nextBoxId = 1;
+
+void wipe(QByteArray &data)
+{
+    if (!data.isEmpty()) {
+        std::memset(data.data(), 0, static_cast<size_t>(data.size()));
+    }
+    data.clear();
+}
+
+/*
+ * Gwenhywfar texts may carry an HTML rendition after the plain one, as in
+ * "Plain text<html>Rich text</html>". Only the plain part is used; tags that
+ * slip through elsewhere are dropped, as QML shows these texts as plain text.
+ */
+QString plainText(const char *text)
+{
+    if (!text) {
+        return QString();
+    }
+    QString result = QString::fromUtf8(text);
+    const int html = result.indexOf(QStringLiteral("<html>"), 0, Qt::CaseInsensitive);
+    if (html > 0) {
+        result.truncate(html);
+    } else if (html == 0) {
+        result.remove(QRegExp(QStringLiteral("<[^>]*>")));
+    }
+    return result.trimmed();
+}
+
+int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, const char *title, const char *text,
+                              char *buffer, int minLen, int maxLen, GWEN_GUI_PASSWORD_METHOD methodId,
+                              GWEN_DB_NODE *methodParams, uint32_t)
+{
+    const bool isTan = flags & GWEN_GUI_INPUT_FLAGS_TAN;
+    const QByteArray tokenName(token ? token : "");
+
+    if (!isTan && !tokenName.isEmpty() && pins.contains(tokenName)) {
+        const QByteArray &pin = pins[tokenName];
+        if (pin.size() < maxLen) {
+            std::memcpy(buffer, pin.constData(), static_cast<size_t>(pin.size()));
+            buffer[pin.size()] = 0;
+            return 0;
+        }
+    }
+
+    QByteArray image;
+    QString mimeType;
+    if (isTan && (methodId & GWEN_Gui_PasswordMethod_Mask) == GWEN_Gui_PasswordMethod_OpticalHHD && methodParams) {
+        const int tanMethod = GWEN_DB_GetIntValue(methodParams, "tanMethodId", 0, AB_BANKING_TANMETHOD_TEXT);
+        if (tanMethod == AB_BANKING_TANMETHOD_PHOTOTAN || tanMethod == AB_BANKING_TANMETHOD_CHIPTAN_QR) {
+            unsigned int size = 0;
+            const void *data = GWEN_DB_GetBinValue(methodParams, "imageData", 0, nullptr, 0, &size);
+            if (data && size > 0) {
+                image = QByteArray(static_cast<const char *>(data), static_cast<int>(size));
+                mimeType = QString::fromUtf8(GWEN_DB_GetCharValue(methodParams, "mimeType", 0, ""));
+            }
+        }
+    }
+
+    BankingThread::Response response = bankingThread->requestInteraction(
+                isTan ? BankingThread::TanInteraction : BankingThread::PinInteraction,
+                plainText(title), plainText(text), QStringList(), image, mimeType);
+    if (!response.accepted) {
+        return GWEN_ERROR_USER_ABORTED;
+    }
+    if (response.text.size() < minLen || response.text.size() >= maxLen) {
+        wipe(response.text);
+        bankingThread->reportError(isTan ? QCoreApplication::translate("GwenGui", "The TAN has an invalid length.")
+                                         : QCoreApplication::translate("GwenGui", "The PIN has an invalid length."));
+        return GWEN_ERROR_INVALID;
+    }
+    std::memcpy(buffer, response.text.constData(), static_cast<size_t>(response.text.size()));
+    buffer[response.text.size()] = 0;
+    if (!isTan && !tokenName.isEmpty()) {
+        pins.insert(tokenName, response.text);
+    }
+    wipe(response.text);
+    return 0;
+}
+
+int GWENHYWFAR_CB setPasswordStatus(GWEN_GUI *, const char *token, const char *, GWEN_GUI_PASSWORD_STATUS status, uint32_t)
+{
+    if (token && (status == GWEN_Gui_PasswordStatus_Bad || status == GWEN_Gui_PasswordStatus_Remove)) {
+        auto pin = pins.find(QByteArray(token));
+        if (pin != pins.end()) {
+            wipe(pin.value());
+            pins.erase(pin);
+        }
+    }
+    return 0;
+}
+
+int GWENHYWFAR_CB messageBox(GWEN_GUI *, uint32_t, const char *title, const char *text,
+                             const char *b1, const char *b2, const char *b3, uint32_t)
+{
+    QStringList buttons;
+    for (const char *button : { b1, b2, b3 }) {
+        if (!button) {
+            break;
+        }
+        buttons.append(plainText(button));
+    }
+    if (buttons.isEmpty()) {
+        buttons.append(QCoreApplication::translate("GwenGui", "OK"));
+    }
+    const BankingThread::Response response = bankingThread->requestInteraction(
+                BankingThread::MessageInteraction, plainText(title), plainText(text), buttons);
+    if (!response.accepted) {
+        return GWEN_ERROR_USER_ABORTED;
+    }
+    return response.choice;
+}
+
+int GWENHYWFAR_CB inputBox(GWEN_GUI *, uint32_t, const char *title, const char *text,
+                           char *buffer, int minLen, int maxLen, uint32_t)
+{
+    BankingThread::Response response = bankingThread->requestInteraction(
+                BankingThread::TextInteraction, plainText(title), plainText(text));
+    if (!response.accepted) {
+        return GWEN_ERROR_USER_ABORTED;
+    }
+    if (response.text.size() < minLen || response.text.size() >= maxLen) {
+        wipe(response.text);
+        return GWEN_ERROR_INVALID;
+    }
+    std::memcpy(buffer, response.text.constData(), static_cast<size_t>(response.text.size()));
+    buffer[response.text.size()] = 0;
+    wipe(response.text);
+    return 0;
+}
+
+uint32_t GWENHYWFAR_CB showBox(GWEN_GUI *, uint32_t, const char *title, const char *text, uint32_t)
+{
+    const QString message = plainText(text);
+    bankingThread->reportProgress(message.isEmpty() ? plainText(title) : message);
+    return nextBoxId++;
+}
+
+void GWENHYWFAR_CB hideBox(GWEN_GUI *, uint32_t)
+{
+}
+
+uint32_t GWENHYWFAR_CB progressStart(GWEN_GUI *, uint32_t, const char *title, const char *, uint64_t, uint32_t)
+{
+    const QString message = plainText(title);
+    if (!message.isEmpty()) {
+        bankingThread->reportProgress(message);
+    }
+    return nextBoxId++;
+}
+
+int GWENHYWFAR_CB progressAdvance(GWEN_GUI *, uint32_t, uint64_t)
+{
+    return bankingThread->isCancelled() ? GWEN_ERROR_USER_ABORTED : 0;
+}
+
+int GWENHYWFAR_CB progressSetTotal(GWEN_GUI *, uint32_t, uint64_t)
+{
+    return 0;
+}
+
+int GWENHYWFAR_CB progressLog(GWEN_GUI *, uint32_t, GWEN_LOGGER_LEVEL level, const char *text)
+{
+    const QString message = plainText(text);
+    if (level <= GWEN_LoggerLevel_Error) {
+        bankingThread->reportError(message);
+    } else if (level <= GWEN_LoggerLevel_Notice) {
+        bankingThread->reportProgress(message);
+    }
+    return bankingThread->isCancelled() ? GWEN_ERROR_USER_ABORTED : 0;
+}
+
+int GWENHYWFAR_CB progressEnd(GWEN_GUI *, uint32_t)
+{
+    return 0;
+}
+
+/*
+ * Gwenhywfar has already verified the chain against the system's CA bundle
+ * and the host name. The stock implementation would ask the user what to do
+ * with a certificate that failed; a banking app has nothing to ask there.
+ * Only a certificate without any finding is accepted.
+ */
+int GWENHYWFAR_CB checkCert(GWEN_GUI *, const GWEN_SSLCERTDESCR *cert, GWEN_SYNCIO *, uint32_t)
+{
+    const uint32_t status = GWEN_SslCertDescr_GetStatusFlags(cert);
+    if (status == GWEN_SSL_CERT_FLAGS_OK) {
+        return 0;
+    }
+    const QString details = QString::fromUtf8(GWEN_SslCertDescr_GetStatusText(cert));
+    bankingThread->reportError(QCoreApplication::translate("GwenGui", "The bank's server could not prove its identity, the connection was refused. %1")
+                               .arg(details).trimmed());
+    return GWEN_ERROR_SSL_SECURITY;
+}
+
+/*
+ * Gwenhywfar and AqBanking log to stderr, and at their more talkative levels
+ * also what they are sending and receiving. In release builds nothing of it
+ * leaves the app.
+ */
+int GWENHYWFAR_CB logHook(GWEN_GUI *, const char *domain, GWEN_LOGGER_LEVEL priority, const char *text)
+{
+#ifdef QT_DEBUG
+    qDebug() << "[" << domain << priority << "]" << text;
+#else
+    Q_UNUSED(domain)
+    Q_UNUSED(priority)
+    Q_UNUSED(text)
+#endif
+    return 1;
+}
+
+}
+
+namespace GwenGui
+{
+
+GWEN_GUI *create(BankingThread *thread)
+{
+    bankingThread = thread;
+    GWEN_GUI *gui = GWEN_Gui_new();
+    GWEN_Gui_SetGetPasswordFn(gui, getPassword);
+    GWEN_Gui_SetSetPasswordStatusFn(gui, setPasswordStatus);
+    GWEN_Gui_SetMessageBoxFn(gui, messageBox);
+    GWEN_Gui_SetInputBoxFn(gui, inputBox);
+    GWEN_Gui_SetShowBoxFn(gui, showBox);
+    GWEN_Gui_SetHideBoxFn(gui, hideBox);
+    GWEN_Gui_SetProgressStartFn(gui, progressStart);
+    GWEN_Gui_SetProgressAdvanceFn(gui, progressAdvance);
+    GWEN_Gui_SetProgressSetTotalFn(gui, progressSetTotal);
+    GWEN_Gui_SetProgressLogFn(gui, progressLog);
+    GWEN_Gui_SetProgressEndFn(gui, progressEnd);
+    GWEN_Gui_SetCheckCertFn(gui, checkCert);
+    GWEN_Gui_SetLogHookFn(gui, logHook);
+    return gui;
+}
+
+void destroy(GWEN_GUI *gui)
+{
+    forgetPins();
+    GWEN_Gui_free(gui);
+    bankingThread = nullptr;
+}
+
+void forgetPins()
+{
+    for (auto pin = pins.begin(); pin != pins.end(); ++pin) {
+        wipe(pin.value());
+    }
+    pins.clear();
+}
+
+}

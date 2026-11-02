@@ -1,0 +1,30 @@
+diff -ru a/src/libs/aqbanking/banking.c b/src/libs/aqbanking/banking.c
+--- aqbanking-6.9.2.orig/src/libs/aqbanking/banking.c	2026-11-02 22:17:51.683543186 +0100
++++ aqbanking-6.9.2/src/libs/aqbanking/banking.c	2026-11-02 22:17:51.707285277 +0100
+@@ -437,6 +437,11 @@
+   int rv;
+   FILE *f;
+ 
++#ifndef AQBANKING_ENABLE_DISK_LOGS
++  /* Zaster Banker: never write job logs (may contain account data) to disk unencrypted */
++  return;
++#endif
++
+   pathBuffer=GWEN_Buffer_new(0, 256, 0, 1);
+   GWEN_Buffer_AppendString(pathBuffer, ab->dataDir);
+   GWEN_Buffer_AppendString(pathBuffer, GWEN_DIR_SEPARATOR_S "jobs" GWEN_DIR_SEPARATOR_S);
+diff -ru a/src/libs/plugins/backends/aqhbci/msglayer/message.c b/src/libs/plugins/backends/aqhbci/msglayer/message.c
+--- aqbanking-6.9.2.orig/src/libs/plugins/backends/aqhbci/msglayer/message.c	2026-11-02 22:17:51.688667137 +0100
++++ aqbanking-6.9.2/src/libs/plugins/backends/aqhbci/msglayer/message.c	2026-11-02 22:17:51.707484459 +0100
+@@ -1668,6 +1668,11 @@
+   assert(msg);
+   assert(buf);
+ 
++#ifndef AQBANKING_ENABLE_DISK_LOGS
++  /* Zaster Banker: never write FinTS messages (contain account data) to disk unencrypted */
++  return;
++#endif
++
+   logFile=AH_Dialog_GetLogFile(msg->dialog);
+   if (!logFile) {
+     DBG_ERROR(AQHBCI_LOGDOMAIN,

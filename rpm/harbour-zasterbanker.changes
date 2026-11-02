@@ -1,0 +1,6 @@
+* Mon Nov 02 2026 Sebastian J. Wolf <sebastian@ygriega.de> 0.5.0-1
+- Restart of Zaster Banker as a personal finance app, built on AqBanking
+- Bank selection with search as you type, setup of a FinTS PIN/TAN access
+- photoTAN and text TAN, choice of the TAN method
+- Accounts and their balances
+- Everything stored is encrypted, the key is kept in Sailfish Secrets

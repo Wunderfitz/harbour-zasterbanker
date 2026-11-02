@@ -54,3 +54,18 @@ compile_commands.json
 *creator.user*
 
 *_qmlcache.qrc
+
+# Zaster Banker
+/3rdparty/downloads/
+/3rdparty/src/
+/3rdparty/build/
+/3rdparty/install/
+# The Qt template's *build-* above would hide it
+!/3rdparty/build-deps.sh
+/.sfdk/
+/RPMS/
+/documentation.list
+# FinTS product registration - never commit
+/src/FinTsRegistration.h
+# Bank list database generated from the institute list
+/db/

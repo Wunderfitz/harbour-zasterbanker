@@ -1,0 +1,15 @@
+/*
+    Copy this file to src/FinTsRegistration.h and enter the product
+    registration number the Deutsche Kreditwirtschaft assigned to Zaster
+    Banker (https://www.hbci-zka.de/register/prod_register.htm).
+
+    src/FinTsRegistration.h is listed in .gitignore and must never be
+    committed: the number identifies this app towards every bank.
+*/
+
+#ifndef FINTSREGISTRATION_H
+#define FINTSREGISTRATION_H
+
+#define FINTS_REGISTRATION_NUMBER "PLACEHOLDER"
+
+#endif // FINTSREGISTRATION_H

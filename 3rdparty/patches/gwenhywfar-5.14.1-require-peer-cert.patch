@@ -1,0 +1,15 @@
+--- gwenhywfar-5.14.1.orig/src/sio/httpsession.c	2026-11-02 22:43:46.887214276 +0100
++++ gwenhywfar-5.14.1/src/sio/httpsession.c	2026-11-02 22:43:46.900139127 +0100
+@@ -343,9 +343,11 @@
+   sioTls=GWEN_SyncIo_GetBaseIoByTypeName(sess->syncIo, GWEN_SYNCIO_TLS_TYPE);
+   if (sioTls) {
+     if (!(sess->flags & GWEN_HTTP_SESSION_FLAGS_PASSIVE)) {  /* client mode */
++      /* Zaster Banker: never accept a TLS connection without a peer certificate */
+       GWEN_SyncIo_AddFlags(sioTls,
+                            GWEN_SYNCIO_TLS_FLAGS_ALLOW_V1_CA_CRT|
+-                           GWEN_SYNCIO_TLS_FLAGS_ADD_TRUSTED_CAS);
++                           GWEN_SYNCIO_TLS_FLAGS_ADD_TRUSTED_CAS|
++                           GWEN_SYNCIO_TLS_FLAGS_NEED_PEER_CERT);
+     }
+     else { /* server mode */
+     }
