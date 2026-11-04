@@ -148,6 +148,18 @@ archives, and the app links them in.
   AqBanking with the `aqhbci` (FinTS) backend and `aqnone`, the
   placeholder backend it cannot start without. Plugins and data are looked
   for under `/usr/share/harbour-zasterbanker/`.
+- **Translations** (decided 2026-11-04, after the project owner found the PIN
+  prompt in English): Gwenhywfar and AqBanking write the texts of PIN and TAN
+  prompts and many messages themselves, so both are built with NLS (glibc's
+  gettext, no extra library; GnuTLS and libgpg-error stay without). They
+  translate by the system locale (`LANG`, e.g. `de_DE.utf8` on the phone),
+  not by the app's own language. The build engine has no `msgfmt`, so the
+  script compiles their `po/*.po` (only German exists) with `tools/po2mo.py`
+  into `3rdparty/install/<arch>/share/locale/`, and the app installs them to
+  `/usr/share/harbour-zasterbanker/locale/`. `po2mo.py` leaves out fuzzy
+  entries and any printf-format translation whose conversions differ from the
+  original's, as these strings go into `snprintf`. The emulator has no
+  locales but C and POSIX, so it always shows these texts in English.
 - **Patches** in `3rdparty/patches/`, applied by the script:
   - `aqbanking-6.9.2-no-disk-logs.patch`: AqBanking logs every FinTS message
     (account data, balances, transactions) and every job to plain files in its

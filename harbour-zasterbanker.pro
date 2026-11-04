@@ -90,6 +90,7 @@ DISTFILES += \
     translations/*.ts \
     src/FinTsRegistration.h.example \
     tools/import-banklist.py \
+    tools/po2mo.py \
     tests/search-focus.sh \
     3rdparty/build-deps.sh \
     3rdparty/patches/*.patch \
@@ -116,7 +117,16 @@ database.path = /usr/share/$${TARGET}/db
 aqhbci.files = $$ZB_AQHBCI_XML
 aqhbci.path = /usr/share/$${TARGET}/aqbanking/data/aqbanking/backends/aqhbci
 
-INSTALLS += images database aqhbci
+# Gwenhywfar's and AqBanking's translations (PIN and TAN prompts, the bank's
+# messages), compiled by 3rdparty/build-deps.sh. The path is compiled into
+# both libraries: --with-locale-searchdir.
+!exists($$ZB_LOCALE_DIR/de/LC_MESSAGES/aqbanking.mo) {
+    error("AqBanking's translations for $$ZB_ARCH are missing. Run 3rdparty/build-deps.sh again (see CLAUDE.md).")
+}
+locale.files = $$ZB_LOCALE_DIR/*
+locale.path = /usr/share/$${TARGET}/locale
+
+INSTALLS += images database aqhbci locale
 
 SAILFISHAPP_ICONS = 86x86 108x108 128x128 172x172
 

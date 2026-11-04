@@ -132,7 +132,7 @@ build_gnutls() {
 build_gwenhywfar() {
     ./configure "${COMMON_CONF[@]}" \
         --with-guis="" --with-plugins-ct="" --with-plugins-dbio="" --with-plugins-cfgmgr="" \
-        --enable-system-certs --disable-nls \
+        --enable-system-certs \
         --with-plugin-searchdir="$APP_DATA/gwenhywfar/plugins" \
         --with-locale-searchdir="$APP_DATA/locale" \
         LIBGCRYPT_CONFIG="$STAGE/bin/libgcrypt-config" &&
@@ -144,13 +144,30 @@ build_gwenhywfar() {
 
 build_aqbanking() {
     ./configure "${COMMON_CONF[@]}" \
-        --with-backends="aqhbci aqnone" --disable-nls \
+        --with-backends="aqhbci aqnone" \
         --with-plugin-searchdir="$APP_DATA/aqbanking/plugins" \
         --with-cfg-searchdir="$APP_DATA/aqbanking/etc" \
         --with-locale-searchdir="$APP_DATA/locale" \
         --with-data-searchdir="$APP_DATA/aqbanking/data" \
         --with-typemaker2-exe="$STAGE/bin/typemaker2" \
         --with-xmlmerge="$STAGE/bin/xmlmerge"
+}
+
+# Gwenhywfar and AqBanking talk to the user (PIN and TAN prompts, the bank's
+# messages), so both are built with NLS, served by glibc's gettext. The build
+# engine has no msgfmt, so their catalogues are compiled here; the app installs
+# them where both look (--with-locale-searchdir).
+compile_catalogues() {
+    local entry name version file sha url po lang
+    for entry in "${PKGS[@]}"; do
+        IFS='|' read -r name version file sha url <<< "$entry"
+        [ "$name" = gwenhywfar ] || [ "$name" = aqbanking ] || continue
+        for po in "$BUILD/$name-$version"/po/*.po; do
+            lang="$(basename "$po" .po)"
+            mkdir -p "$STAGE/share/locale/$lang/LC_MESSAGES"
+            python3 "$HERE/../tools/po2mo.py" "$po" "$STAGE/share/locale/$lang/LC_MESSAGES/$name.mo"
+        done
+    done
 }
 
 write_pri() {
@@ -163,6 +180,7 @@ QMAKE_CFLAGS += $cflags
 QMAKE_CXXFLAGS += $cflags
 LIBS += $libs
 ZB_AQHBCI_XML = $STAGE/share/aqbanking/backends/aqhbci/hbci.xml
+ZB_LOCALE_DIR = $STAGE/share/locale
 ZB_AQBANKING_SRC = $BUILD/aqbanking-6.9.2
 EOF
     log "Wrote $STAGE/deps.pri"
@@ -193,5 +211,6 @@ for entry in "${PKGS[@]}"; do
     touch "$stamp"
 done
 
+compile_catalogues
 write_pri
 log "Done"
