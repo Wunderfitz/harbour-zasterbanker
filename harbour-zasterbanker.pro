@@ -74,7 +74,6 @@ DISTFILES += \
     qml/cover/CoverPage.qml \
     qml/components/AboutLink.qml \
     qml/components/AboutParagraph.qml \
-    qml/components/BackgroundImage.qml \
     qml/js/Format.js \
     qml/pages/AboutPage.qml \
     qml/pages/CredentialsDialog.qml \
@@ -100,7 +99,7 @@ DISTFILES += \
 # sailfishapp.prf deploys qml/ for us but knows nothing about anything else.
 # QML reaches the cover artwork as ../../images, which holds both here and
 # under /usr/share/harbour-zasterbanker.
-images.files = images/background.png images/zaster.png
+images.files = images/background.png images/background-black.png images/zaster.png
 images.path = /usr/share/$${TARGET}/images
 
 # Generated from the Deutsche Kreditwirtschaft's institute list by

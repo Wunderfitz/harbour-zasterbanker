@@ -20,7 +20,6 @@
 import QtQuick 2.2
 import Sailfish.Silica 1.0
 import de.ygriega.zasterbanker 1.0
-import "../components"
 import "../js/Format.js" as Format
 
 Page {
@@ -197,10 +196,6 @@ Page {
             color: Theme.highlightColor
             text: qsTr("Unlocking your data...")
         }
-    }
-
-    BackgroundImage {
-        z: -1
     }
 
     RemorsePopup {

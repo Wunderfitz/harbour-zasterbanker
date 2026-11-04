@@ -20,31 +20,30 @@
 import QtQuick 2.2
 import Sailfish.Silica 1.0
 import de.ygriega.zasterbanker 1.0
-import "../components"
 import "../js/Format.js" as Format
 
 CoverBackground {
     id: cover
 
-    BackgroundImage {
-        sourceDimension: Math.min(cover.width, cover.height) - 2 * Theme.paddingMedium
+    // The coin silhouette, exactly as the original Zaster Banker drew it.
+    // Anchoring both verticalCenter and bottom makes the image as high as the
+    // cover less the margins; PreserveAspectFit makes it as wide, so it runs
+    // over the cover's left edge. The silhouette is white; on a light ambience
+    // a black copy of it takes its place.
+    Image {
+        source: Theme.colorScheme === Theme.DarkOnLight ? "../../images/background-black.png" : "../../images/background.png"
         anchors {
-            centerIn: undefined
-            right: parent.right
-            rightMargin: Theme.paddingMedium
+            verticalCenter: parent.verticalCenter
+
             bottom: parent.bottom
             bottomMargin: Theme.paddingMedium
-        }
-    }
 
-    Label {
-        anchors.centerIn: parent
-        visible: !accountColumn.visible
-        width: parent.width - 2 * Theme.paddingLarge
-        horizontalAlignment: Text.AlignHCenter
-        wrapMode: Text.Wrap
-        color: Theme.secondaryColor
-        text: "Zaster Banker"
+            right: parent.right
+            rightMargin: Theme.paddingMedium
+        }
+
+        fillMode: Image.PreserveAspectFit
+        opacity: 0.2
     }
 
     // The accounts that have a balance, as many as fit, the first ones brightest.
