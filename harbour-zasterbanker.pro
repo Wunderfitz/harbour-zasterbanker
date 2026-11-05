@@ -74,6 +74,7 @@ DISTFILES += \
     qml/cover/CoverPage.qml \
     qml/components/AboutLink.qml \
     qml/components/AboutParagraph.qml \
+    qml/components/BankTotal.qml \
     qml/js/Format.js \
     qml/pages/AboutPage.qml \
     qml/pages/CredentialsDialog.qml \

@@ -34,7 +34,7 @@ class AccountModel : public QAbstractListModel
 {
     Q_OBJECT
     Q_PROPERTY(int count READ rowCount NOTIFY countChanged)
-    Q_PROPERTY(bool hasBalances READ hasBalances NOTIFY balancesChanged)
+    Q_PROPERTY(QVariantList syncedBanks READ syncedBanks NOTIFY balancesChanged)
 
 public:
     enum Roles {
@@ -50,15 +50,20 @@ public:
         HasBalanceRole,
         BalanceRole,
         BalanceCurrencyRole,
-        BalanceDateRole
+        BalanceDateRole,
+        BankTotalsRole,
+        BankTotalCompleteRole
     };
 
     explicit AccountModel(QObject *parent = nullptr);
 
     int rowCount(const QModelIndex &parent = QModelIndex()) const override;
-    bool hasBalances() const;
+    QVariantList syncedBanks() const;
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
+
+    // The list's sections are the bank accesses; a section only knows the ID.
+    Q_INVOKABLE QString bankNameOf(int bankAccessId) const;
 
     void setAccounts(const QVariantList &accounts);
     void setBalances(const QVariantList &balances);
@@ -68,6 +73,9 @@ signals:
     void balancesChanged();
 
 private:
+    QVariantList bankTotals(uint bankAccessId) const;
+    bool bankTotalComplete(uint bankAccessId) const;
+
     QList<QVariantMap> accounts;
     QHash<uint, QVariantMap> balances;
 };

@@ -46,12 +46,13 @@ CoverBackground {
         opacity: 0.2
     }
 
-    // The accounts that have a balance, as many as fit, the first ones brightest.
-    Column {
-        id: accountColumn
+    // The banks that have balances, with their totals. The list stops above the
+    // cover action, and fades out there if there are more banks than fit.
+    Item {
+        id: bankArea
 
-        visible: banking.state === Banking.Ready && banking.accounts.hasBalances
-        spacing: Theme.paddingMedium
+        visible: banking.state === Banking.Ready
+        clip: true
 
         anchors {
             top: parent.top
@@ -60,36 +61,67 @@ CoverBackground {
             leftMargin: Theme.paddingMedium
             right: parent.right
             rightMargin: Theme.paddingMedium
+            bottom: parent.bottom
+            bottomMargin: Theme.itemSizeSmall
         }
 
-        Repeater {
-            id: repeater
+        Column {
+            id: bankColumn
 
-            model: banking.state === Banking.Ready ? banking.accounts : null
+            width: parent.width
+            spacing: Theme.paddingMedium
 
-            Column {
-                width: accountColumn.width
-                visible: hasBalance && index < 4
-                opacity: 1.0 - index * 0.2
+            Repeater {
+                model: banking.accounts.syncedBanks
 
-                Label {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    font.pixelSize: Theme.fontSizeExtraSmall
-                    color: Theme.secondaryColor
-                    truncationMode: TruncationMode.Fade
-                    text: name ? name : bankName
-                }
-                Label {
-                    width: parent.width
-                    horizontalAlignment: Text.AlignHCenter
-                    font.pixelSize: Theme.fontSizeSmall
-                    color: balance < 0 ? Theme.errorColor : Theme.highlightColor
-                    truncationMode: TruncationMode.Fade
-                    text: hasBalance ? Format.amount(balance, balanceCurrency) : ""
+                Column {
+                    id: bankItem
+
+                    readonly property var bank: modelData
+
+                    width: bankColumn.width
+
+                    Label {
+                        width: parent.width
+                        font.pixelSize: Theme.fontSizeMedium
+                        color: Theme.primaryColor
+                        wrapMode: Text.Wrap
+                        maximumLineCount: 2
+                        truncationMode: TruncationMode.Elide
+                        text: bankItem.bank.bankName
+                    }
+                    Repeater {
+                        model: bankItem.bank.totals
+
+                        // Shrinks rather than cuts off: an amount must be readable in full.
+                        Label {
+                            width: bankItem.width
+                            font.pixelSize: Theme.fontSizeLarge
+                            fontSizeMode: Text.HorizontalFit
+                            minimumPixelSize: Theme.fontSizeTiny
+                            color: modelData.amount < 0 ? Theme.errorColor : Theme.highlightColor
+                            text: Format.amount(modelData.amount, modelData.currency)
+                        }
+                    }
+                    Label {
+                        width: parent.width
+                        visible: !bankItem.bank.complete
+                        font.pixelSize: Theme.fontSizeSmall
+                        color: Theme.secondaryColor
+                        truncationMode: TruncationMode.Fade
+                        text: qsTr("Not all accounts")
+                    }
                 }
             }
         }
+    }
+
+    OpacityRampEffect {
+        sourceItem: bankArea
+        enabled: bankColumn.height > bankArea.height
+        direction: OpacityRamp.TopToBottom
+        offset: 0.7
+        slope: 3.3
     }
 
     BusyIndicator {

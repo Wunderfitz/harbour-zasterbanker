@@ -19,6 +19,9 @@
 
 #include "AccountModel.h"
 
+#include <QMap>
+#include <QSet>
+
 #include <algorithm>
 
 AccountModel::AccountModel(QObject *parent)
@@ -31,14 +34,27 @@ int AccountModel::rowCount(const QModelIndex &parent) const
     return parent.isValid() ? 0 : accounts.size();
 }
 
-bool AccountModel::hasBalances() const
+// The bank accesses that have balances, with their totals, for the cover.
+QVariantList AccountModel::syncedBanks() const
 {
+    QVariantList result;
+    QSet<uint> seen;
     for (const QVariantMap &account : accounts) {
-        if (balances.contains(account.value(QStringLiteral("accountId")).toUInt())) {
-            return true;
+        const uint bankAccessId = account.value(QStringLiteral("bankAccessId")).toUInt();
+        if (seen.contains(bankAccessId)) {
+            continue;
+        }
+        seen.insert(bankAccessId);
+        const QVariantList totals = bankTotals(bankAccessId);
+        if (!totals.isEmpty()) {
+            QVariantMap bank;
+            bank.insert(QStringLiteral("bankName"), account.value(QStringLiteral("bankName")));
+            bank.insert(QStringLiteral("totals"), totals);
+            bank.insert(QStringLiteral("complete"), bankTotalComplete(bankAccessId));
+            result.append(bank);
         }
     }
-    return false;
+    return result;
 }
 
 QVariant AccountModel::data(const QModelIndex &index, int role) const
@@ -62,6 +78,8 @@ QVariant AccountModel::data(const QModelIndex &index, int role) const
     case BalanceRole: return balances.value(accountId).value(QStringLiteral("balance"), 0.0);
     case BalanceCurrencyRole: return balances.value(accountId).value(QStringLiteral("currency"));
     case BalanceDateRole: return balances.value(accountId).value(QStringLiteral("date"));
+    case BankTotalsRole: return bankTotals(account.value(QStringLiteral("bankAccessId")).toUInt());
+    case BankTotalCompleteRole: return bankTotalComplete(account.value(QStringLiteral("bankAccessId")).toUInt());
     }
     return QVariant();
 }
@@ -82,7 +100,57 @@ QHash<int, QByteArray> AccountModel::roleNames() const
     roles.insert(BalanceRole, "balance");
     roles.insert(BalanceCurrencyRole, "balanceCurrency");
     roles.insert(BalanceDateRole, "balanceDate");
+    roles.insert(BankTotalsRole, "bankTotals");
+    roles.insert(BankTotalCompleteRole, "bankTotalComplete");
     return roles;
+}
+
+/*
+ * One entry per currency, as amounts in different currencies cannot be added
+ * up. Rounded to cents because the sum is one of doubles: what should be zero
+ * may come out as a tiny negative number, which would show as a red "-0,00".
+ */
+QVariantList AccountModel::bankTotals(uint bankAccessId) const
+{
+    QMap<QString, double> totals;
+    for (const QVariantMap &account : accounts) {
+        if (account.value(QStringLiteral("bankAccessId")).toUInt() == bankAccessId) {
+            const auto balance = balances.constFind(account.value(QStringLiteral("accountId")).toUInt());
+            if (balance != balances.constEnd()) {
+                totals[balance->value(QStringLiteral("currency")).toString()] += balance->value(QStringLiteral("balance")).toDouble();
+            }
+        }
+    }
+    QVariantList result;
+    for (auto total = totals.constBegin(); total != totals.constEnd(); ++total) {
+        QVariantMap entry;
+        entry.insert(QStringLiteral("amount"), qRound64(total.value() * 100) / 100.0);
+        entry.insert(QStringLiteral("currency"), total.key());
+        result.append(entry);
+    }
+    return result;
+}
+
+// Banks need not send a balance for every account, a securities account for one.
+bool AccountModel::bankTotalComplete(uint bankAccessId) const
+{
+    for (const QVariantMap &account : accounts) {
+        if (account.value(QStringLiteral("bankAccessId")).toUInt() == bankAccessId
+                && !balances.contains(account.value(QStringLiteral("accountId")).toUInt())) {
+            return false;
+        }
+    }
+    return true;
+}
+
+QString AccountModel::bankNameOf(int bankAccessId) const
+{
+    for (const QVariantMap &account : accounts) {
+        if (account.value(QStringLiteral("bankAccessId")).toInt() == bankAccessId) {
+            return account.value(QStringLiteral("bankName")).toString();
+        }
+    }
+    return QString();
 }
 
 void AccountModel::setAccounts(const QVariantList &newAccounts)
@@ -109,7 +177,8 @@ void AccountModel::setBalances(const QVariantList &newBalances)
     }
     if (!accounts.isEmpty()) {
         emit dataChanged(index(0), index(accounts.size() - 1),
-                         QVector<int>() << HasBalanceRole << BalanceRole << BalanceCurrencyRole << BalanceDateRole);
+                         QVector<int>() << HasBalanceRole << BalanceRole << BalanceCurrencyRole << BalanceDateRole
+                                        << BankTotalsRole << BankTotalCompleteRole);
     }
     emit balancesChanged();
 }

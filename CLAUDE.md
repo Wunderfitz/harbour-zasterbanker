@@ -221,6 +221,29 @@ the TAN methods it allows the user) → let the user choose if there is more
 than one → fetch the account list → fetch the balances. If any step but the
 last fails, the half-made user is deleted again: nothing is left behind.
 
+### Overview page
+
+- **Sections are bank accesses**, keyed by `bankAccessId` rather than the bank
+  name: two accesses at the same bank stay apart, and a section header knows
+  which one it stands for. A section only knows its key, so the name comes from
+  `AccountModel::bankNameOf()`.
+- **What concerns a bank access as a whole is in a `Drawer`** (project owner's
+  decision, 2026-11-05), opened by tapping the section header and built like
+  the one in Fernschreiber's `ChatPage`. It docks at the bottom in portrait and
+  on the right in landscape. Removing an access moved there from the context
+  menu of the single accounts, which no longer exists.
+- **The total per bank** (added 2026-11-05) is calculated by `AccountModel`,
+  as the roles `bankTotals` and `bankTotalComplete`, so it follows every
+  `setBalances()` by itself. List sections have no footer, so the last account
+  row of a bank shows it (`BankTotal`). There is one line per currency, as
+  amounts in different currencies cannot be added up. Banks need not send a
+  balance for every account: the total then adds up what there is and says
+  "not all accounts included".
+- **The cover shows the banks with balances and their totals**, not single
+  accounts (project owner's decision, 2026-11-05), from
+  `AccountModel::syncedBanks`, with the same total as the overview. More banks
+  than fit fade out above the cover action.
+
 ### Data protection
 
 - **Everything AqBanking stores is encrypted.** AqBanking reads and writes its
@@ -372,6 +395,15 @@ project unless the owner says so.
   showed perfectly, the project owner's reading device read it, and the bank
   accepted the TAN. Verified thereby: TAN challenge during a balance fetch,
   the challenge image through `TanImageProvider`, TAN entry and its answer.
+- 2026-11-05, development device: the project owner tried the drawer on the
+  overview, the totals per bank and the new cover with their real bank access
+  and is happy with all three. The undo countdown was only seen on the
+  emulator; the removal itself was not carried out.
+- 2026-11-05, emulator (5.1): the app stops at "Banking nicht verfügbar", with
+  "Password Agent was unable to verify the authenticity of the user" from
+  Sailfish Secrets, also on an unmodified page. It got past that on 2026-11-03
+  and the phone is not affected. Not looked into yet. UI checks on the emulator
+  ran on sample data patched into the QML.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.
