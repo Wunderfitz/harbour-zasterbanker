@@ -233,22 +233,22 @@
 <context>
     <name>GwenGui</name>
     <message>
-        <location filename="../src/GwenGui.cpp" line="108"/>
+        <location filename="../src/GwenGui.cpp" line="140"/>
         <source>The TAN has an invalid length.</source>
         <translation>Die TAN hat eine ungültige Länge.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="109"/>
+        <location filename="../src/GwenGui.cpp" line="141"/>
         <source>The PIN has an invalid length.</source>
         <translation>Die PIN hat eine ungültige Länge.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="144"/>
+        <location filename="../src/GwenGui.cpp" line="176"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="231"/>
+        <location filename="../src/GwenGui.cpp" line="263"/>
         <source>The bank&apos;s server could not prove its identity, the connection was refused. %1</source>
         <translation>Der Server der Bank konnte seine Identität nicht nachweisen, die Verbindung wurde abgelehnt. %1</translation>
     </message>
@@ -441,7 +441,7 @@
     <name>TanDialog</name>
     <message>
         <location filename="../qml/pages/TanDialog.qml" line="73"/>
-        <location filename="../qml/pages/TanDialog.qml" line="116"/>
+        <location filename="../qml/pages/TanDialog.qml" line="117"/>
         <source>TAN</source>
         <translation>TAN</translation>
     </message>

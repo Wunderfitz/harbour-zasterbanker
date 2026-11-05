@@ -250,6 +250,14 @@ last fails, the half-made user is deleted again: nothing is left behind.
   above).
 - **Logs:** Gwenhywfar and AqBanking log at error level only, and in release
   builds not at all; FinTS message and job logs are compiled out (patch above).
+- **The bank's texts are not trusted** (decided 2026-11-05, after the project
+  owner found literal `<br>` tags in a TAN challenge). AqBanking passes the
+  challenge on as the bank sent it, formatting included, into the TAN dialog
+  and, for decoupled approval, the message dialog. Both show it as
+  `Text.StyledText`, not `RichText`, and `styledText()` in `GwenGui` filters it
+  first: StyledText also knows `<img>`, which would load from any address, and
+  `<a>`. Only `b`, `br`, `i`, `li`, `ol`, `p`, `strong`, `u` and `ul` get
+  through, without attributes; other tags are dropped and the rest is escaped.
 - Gwenhywfar switches libgcrypt to "quick random", which downgrades requests
   for `GCRY_VERY_STRONG_RANDOM` to `GCRY_STRONG_RANDOM`. That level is still a
   cryptographically secure generator meant for keys; accepted.
@@ -302,9 +310,19 @@ One qmake project at the root, as in Fernschreiber and Chronograph: `src/`,
   and armv7hl serve devices still on 4.6. All of these passed `sfdk check`
   with its own tooling on 2026-11-03 (only warnings: unstripped binary, and
   `gethostbyname`, which GnuTLS/Gwenhywfar link).
-- **Emulator**: `sfdk emulator start` runs 5.1 (i486); deploy with
-  `sfdk -c target=SailfishOS-5.1.0.11-i486 -c device="Sailfish OS Emulator 5.1.0.11" deploy --sdk`
-  from the 5.1 i486 build directory. Launch it from SSH as the launcher would:
+- **Emulator**: `sfdk emulator start` runs 5.1 (i486). Deploy the 5.1 i486
+  RPM **as root over SSH**, never with `sfdk deploy --sdk`: that one pops a
+  confirmation dialog in the emulator and waits for a tap (it stalled a
+  session once). Same version again is fine thanks to `--force`:
+
+  ```sh
+  K=~/SailfishOS/vmshare/ssh/private_keys/sdk
+  R=~/git/build-harbour-zasterbanker-5.1.0.11-i486/RPMS/harbour-zasterbanker-0.5.0-1.i486.rpm
+  scp -i $K -P 2223 $R root@127.0.0.1:/tmp/
+  ssh -i $K -p 2223 root@127.0.0.1 "rpm -U --force /tmp/$(basename $R) && rm /tmp/$(basename $R)"
+  ```
+
+  Launch it from SSH as the launcher would:
   `sailjail -p harbour-zasterbanker.desktop /usr/bin/harbour-zasterbanker`.
   A screenshot is `VBoxManage controlvm SailfishOS-5.1.0.11 screenshotpng <file>`,
   typing into the focused field `VBoxManage controlvm SailfishOS-5.1.0.11
@@ -349,10 +367,14 @@ project unless the owner says so.
   Verified thereby: bank search, TLS to the bank, handshake (system ID),
   TAN method choice, account list, balances, all with the real registration
   number. Personal details of that access stay out of this file.
+- **2026-11-05, real bank: the photoTAN dialog works.** Updating the account
+  balances brought up the 2FA dialog for the first time. The coloured QR code
+  showed perfectly, the project owner's reading device read it, and the bank
+  accepted the TAN. Verified thereby: TAN challenge during a balance fetch,
+  the challenge image through `TanImageProvider`, TAN entry and its answer.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
-  the photoTAN dialog itself (no TAN entry was reported for that setup), the other
-  TAN methods, removing a bank access, and the reset after an unreadable
-  store.
+  the other TAN methods, removing a bank access, and the reset after an
+  unreadable store.
 
 ## Roadmap
 

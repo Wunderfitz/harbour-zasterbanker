@@ -49,8 +49,8 @@ void wipe(QByteArray &data)
 
 /*
  * Gwenhywfar texts may carry an HTML rendition after the plain one, as in
- * "Plain text<html>Rich text</html>". Only the plain part is used; tags that
- * slip through elsewhere are dropped, as QML shows these texts as plain text.
+ * "Plain text<html>Rich text</html>". Only the plain part is used; a text that
+ * is nothing but HTML loses its tags.
  */
 QString plainText(const char *text)
 {
@@ -65,6 +65,38 @@ QString plainText(const char *text)
         result.remove(QRegExp(QStringLiteral("<[^>]*>")));
     }
     return result.trimmed();
+}
+
+/*
+ * For the dialogs that show the bank's own words, the TAN challenge above all,
+ * which AqBanking passes on as received, formatting tags included. QML shows
+ * these as Text.StyledText. That also knows <img>, which would load from any
+ * address, and <a>, and the bank's text is not to be trusted with either: only
+ * text formatting gets through, without attributes. Other tags are dropped and
+ * everything else is escaped, so that a stray "<" stays a "<".
+ */
+QString styledText(const char *text)
+{
+    static const QStringList allowedTags = {
+        QStringLiteral("b"), QStringLiteral("br"), QStringLiteral("i"), QStringLiteral("li"), QStringLiteral("ol"),
+        QStringLiteral("p"), QStringLiteral("strong"), QStringLiteral("u"), QStringLiteral("ul")
+    };
+    const QString source = plainText(text);
+    QRegExp tag(QStringLiteral("<(/?)([a-z][a-z0-9]*)\\b[^<>]*>"), Qt::CaseInsensitive);
+    QString result;
+    int position = 0;
+    int match;
+    while ((match = tag.indexIn(source, position)) >= 0) {
+        result += source.mid(position, match - position).toHtmlEscaped();
+        if (allowedTags.contains(tag.cap(2).toLower())) {
+            result += QLatin1Char('<') + tag.cap(1) + tag.cap(2) + QLatin1Char('>');
+        }
+        position = match + tag.matchedLength();
+    }
+    result += source.mid(position).toHtmlEscaped();
+    // AqBanking's own line breaks; StyledText takes them for mere spaces.
+    result.replace(QLatin1Char('\n'), QStringLiteral("<br>"));
+    return result;
 }
 
 int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, const char *title, const char *text,
@@ -99,7 +131,7 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
 
     BankingThread::Response response = bankingThread->requestInteraction(
                 isTan ? BankingThread::TanInteraction : BankingThread::PinInteraction,
-                plainText(title), plainText(text), QStringList(), image, mimeType);
+                plainText(title), isTan ? styledText(text) : plainText(text), QStringList(), image, mimeType);
     if (!response.accepted) {
         return GWEN_ERROR_USER_ABORTED;
     }
@@ -144,7 +176,7 @@ int GWENHYWFAR_CB messageBox(GWEN_GUI *, uint32_t, const char *title, const char
         buttons.append(QCoreApplication::translate("GwenGui", "OK"));
     }
     const BankingThread::Response response = bankingThread->requestInteraction(
-                BankingThread::MessageInteraction, plainText(title), plainText(text), buttons);
+                BankingThread::MessageInteraction, plainText(title), styledText(text), buttons);
     if (!response.accepted) {
         return GWEN_ERROR_USER_ABORTED;
     }

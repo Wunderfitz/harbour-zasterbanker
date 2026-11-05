@@ -106,6 +106,7 @@ Dialog {
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
                 color: Theme.highlightColor
+                textFormat: Text.StyledText
                 text: tanDialog.message
             }
 
