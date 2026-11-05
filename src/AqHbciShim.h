@@ -78,6 +78,20 @@ int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId);
 int ZB_ListUsers(AB_BANKING *ab, ZB_USER_INFO *users, int maxUsers);
 int ZB_GetAccountUser(AB_BANKING *ab, uint32_t accountUid, uint32_t *pUserUid);
 
+/*
+ * Has transactions fetched as CAMT where the bank offers that; AqBanking falls
+ * back to MT940 if it does not. Without this it only ever tries MT940, and gives
+ * up silently if the bank does not list that job for the account.
+ */
+int ZB_PreferCamtDownload(AB_BANKING *ab, uint32_t accountUid);
+
+/*
+ * Asks the bank for the SEPA details of the account's user if the account has no
+ * BIC yet: fetching the account list does not bring one, and banks reject requests
+ * for transactions without it (9160). Returns 1 if it asked, 0 if there was no need.
+ */
+int ZB_EnsureAccountBic(AB_BANKING *ab, uint32_t accountUid);
+
 /* Deletes the user together with all of its accounts. */
 int ZB_DeleteUser(AB_BANKING *ab, uint32_t uid);
 

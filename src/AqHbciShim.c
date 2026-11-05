@@ -25,6 +25,7 @@
 #include <aqbanking/backendsupport/user.h>
 #include <aqbanking/types/imexporter_context.h>
 
+#include "aqhbci/banking/account.h"
 #include "aqhbci/banking/provider_online.h"
 #include "aqhbci/banking/user.h"
 #include "aqhbci/tan/tanmethod.h"
@@ -267,6 +268,71 @@ int ZB_GetAccountUser(AB_BANKING *ab, uint32_t accountUid, uint32_t *pUserUid)
     rv = AB_Provider_GetAccount(pro, accountUid, 1, 1, &account);
     if (rv >= 0) {
         *pUserUid = AB_Account_GetUserId(account);
+        AB_Account_free(account);
+    }
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+int ZB_PreferCamtDownload(AB_BANKING *ab, uint32_t accountUid)
+{
+    AB_PROVIDER *pro;
+    AB_ACCOUNT *account = NULL;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    /* Read first: changing an account rewrites the encrypted store. */
+    rv = AB_Provider_GetAccount(pro, accountUid, 1, 1, &account);
+    if (rv >= 0 && !(AH_Account_GetFlags(account) & AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD)) {
+        AB_Account_free(account);
+        account = NULL;
+        rv = AB_Provider_GetAccount(pro, accountUid, 1, 0, &account);
+        if (rv >= 0) {
+            AH_Account_AddFlags(account, AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD);
+            rv = AB_Provider_EndExclUseAccount(pro, account, 0);
+        }
+    }
+    AB_Account_free(account);
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+int ZB_EnsureAccountBic(AB_BANKING *ab, uint32_t accountUid)
+{
+    AB_PROVIDER *pro;
+    AB_ACCOUNT *account = NULL;
+    AB_USER *user = NULL;
+    AB_IMEXPORTER_CONTEXT *ctx;
+    const char *bic;
+    uint32_t userUid;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    rv = AB_Provider_GetAccount(pro, accountUid, 1, 1, &account);
+    if (rv >= 0) {
+        bic = AB_Account_GetBic(account);
+        userUid = AB_Account_GetUserId(account);
+        if (bic && *bic) {
+            rv = 0;
+        } else {
+            /* as "aqhbci-tool4 getaccsepa" does */
+            rv = AB_Provider_GetUser(pro, userUid, 1, 1, &user);
+            if (rv >= 0) {
+                ctx = AB_ImExporterContext_new();
+                rv = AH_Provider_GetAccountSepaInfo(pro, user, ctx, 1, 0, 1);
+                AB_ImExporterContext_free(ctx);
+                AB_User_free(user);
+                if (rv >= 0) {
+                    rv = 1;
+                }
+            }
+        }
         AB_Account_free(account);
     }
     AB_Banking_EndUseProvider(ab, pro);

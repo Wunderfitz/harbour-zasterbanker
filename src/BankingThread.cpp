@@ -28,6 +28,7 @@
 #include <QDebug>
 #include <QDir>
 #include <QFile>
+#include <QMap>
 #include <QMutexLocker>
 #include <QSet>
 
@@ -36,12 +37,63 @@
 #include <aqbanking/types/balance.h>
 #include <aqbanking/types/imexporter_context.h>
 #include <aqbanking/types/transaction.h>
+#include <gwenhywfar/dbio.h>
+#include <gwenhywfar/gwendate.h>
 #include <gwenhywfar/gwenhywfar.h>
 #include <gwenhywfar/logger.h>
+#include <gwenhywfar/plugin.h>
 
 #include <cstring>
 
+// AqBanking's parser for bank statements, linked in from swift.a. It is a
+// plugin that Gwenhywfar would otherwise look for on disk.
+extern "C" GWEN_PLUGIN *dbio_swift_factory(GWEN_PLUGIN_MANAGER *pm, const char *modName, const char *fileName);
+
 namespace {
+
+// How far back transactions are asked for. Under PSD2, banks generally need no
+// TAN up to this age, and most ask for one or refuse anything older.
+const int TRANSACTION_DAYS = 90;
+
+QDate toQDate(const GWEN_DATE *date)
+{
+    return date ? QDate(GWEN_Date_GetYear(date), GWEN_Date_GetMonth(date), GWEN_Date_GetDay(date)) : QDate();
+}
+
+// The account's statement lines. Other transaction types in there would be
+// AqBanking's own bookkeeping, not movements on the account.
+QVariantList readTransactions(const AB_IMEXPORTER_ACCOUNTINFO *info)
+{
+    QVariantList result;
+    AB_TRANSACTION_LIST *list = AB_ImExporterAccountInfo_GetTransactionList(info);
+    if (!list) {
+        return result;
+    }
+    for (const AB_TRANSACTION *transaction = AB_Transaction_List_First(list); transaction;
+         transaction = AB_Transaction_List_Next(transaction)) {
+        const AB_TRANSACTION_TYPE type = AB_Transaction_GetType(transaction);
+        if (type != AB_Transaction_TypeStatement && type != AB_Transaction_TypeNotedStatement) {
+            continue;
+        }
+        const GWEN_DATE *booked = AB_Transaction_GetDate(transaction);
+        QVariantMap entry;
+        entry.insert(QStringLiteral("date"), toQDate(booked ? booked : AB_Transaction_GetValutaDate(transaction)));
+        // A line the parser found no amount in still gets shown, as "-": leaving
+        // it out would make the statement look complete when it is not.
+        const AB_VALUE *value = AB_Transaction_GetValue(transaction);
+        entry.insert(QStringLiteral("hasAmount"), value != nullptr);
+        entry.insert(QStringLiteral("amount"), value ? AB_Value_GetValueAsDouble(value) : 0.0);
+        entry.insert(QStringLiteral("currency"), value ? QString::fromUtf8(AB_Value_GetCurrency(value)) : QString());
+        entry.insert(QStringLiteral("name"), QString::fromUtf8(AB_Transaction_GetRemoteName(transaction)));
+        entry.insert(QStringLiteral("iban"), QString::fromUtf8(AB_Transaction_GetRemoteIban(transaction)));
+        entry.insert(QStringLiteral("purpose"), QString::fromUtf8(AB_Transaction_GetPurpose(transaction)));
+        entry.insert(QStringLiteral("kind"), QString::fromUtf8(AB_Transaction_GetTransactionText(transaction)));
+        entry.insert(QStringLiteral("pending"), type == AB_Transaction_TypeNotedStatement);
+        result.append(entry);
+    }
+    return result;
+}
+
 // AqBanking's name for this application; it keys the app's own settings group.
 const char APP_NAME[] = "ZasterBanker";
 // Sent to the bank with every dialog, at most five characters. Bump with the spec.
@@ -106,6 +158,14 @@ void BankingThread::fetchBalances()
 {
     Command command;
     command.type = FetchBalances;
+    enqueue(command);
+}
+
+void BankingThread::fetchTransactions(uint accountId)
+{
+    Command command;
+    command.type = FetchTransactions;
+    command.arguments.insert(QStringLiteral("accountId"), accountId);
     enqueue(command);
 }
 
@@ -239,6 +299,9 @@ void BankingThread::run()
     gui = GwenGui::create(this);
     GWEN_Gui_SetGui(gui);
 
+    GWEN_PLUGIN_MANAGER *dbioPlugins = GWEN_PluginManager_FindPluginManager(GWEN_DBIO_PLUGIN_NAME);
+    GWEN_PluginManager_AddPlugin(dbioPlugins, dbio_swift_factory(dbioPlugins, "swift", nullptr));
+
     forever {
         Command command;
         {
@@ -263,6 +326,9 @@ void BankingThread::run()
             break;
         case FetchBalances:
             executeFetchBalances();
+            break;
+        case FetchTransactions:
+            executeFetchTransactions(command);
             break;
         case RemoveBankAccess:
             executeRemoveBankAccess(command);
@@ -487,6 +553,80 @@ bool BankingThread::retrieveBalances(QString *errorMessage)
         *errorMessage = failureMessage(rv < 0 ? rv : GWEN_ERROR_NO_DATA, tr("The bank sent no balances."));
     }
     return success;
+}
+
+void BankingThread::executeFetchTransactions(const Command &command)
+{
+    emit commandStarted(FetchTransactions);
+    if (!banking) {
+        emit commandFinished(FetchTransactions, false, tr("Banking is not available."));
+        return;
+    }
+    const uint accountId = command.arguments.value(QStringLiteral("accountId")).toUInt();
+
+    const int preferred = ZB_PreferCamtDownload(banking, accountId);
+    if (preferred < 0) {
+        qWarning() << "Could not prefer CAMT for this account" << preferred;
+    }
+
+    reportProgress(tr("Retrieving transactions..."));
+    const int bicResult = ZB_EnsureAccountBic(banking, accountId);
+    if (bicResult < 0) {
+        // Not the end yet: the bank may do without, and if not, its answer says so.
+        qWarning() << "Could not fetch the SEPA details of this account" << bicResult;
+    } else if (bicResult > 0) {
+        publishAccounts();
+    }
+    lastError.clear();
+
+    AB_TRANSACTION *job = AB_Transaction_new();
+    AB_Transaction_SetCommand(job, AB_Transaction_CommandGetTransactions);
+    AB_Transaction_SetUniqueAccountId(job, accountId);
+    const QDate firstDay = QDate::currentDate().addDays(-TRANSACTION_DAYS);
+    GWEN_DATE *firstDate = GWEN_Date_fromGregorian(firstDay.year(), firstDay.month(), firstDay.day());
+    AB_Transaction_SetFirstDate(job, firstDate);
+    GWEN_Date_free(firstDate);
+    AB_TRANSACTION_LIST2 *jobs = AB_Transaction_List2_new();
+    AB_Transaction_List2_PushBack(jobs, job);
+
+    AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
+    const int rv = AB_Banking_SendCommands(banking, jobs, context);
+    const bool jobFailed = AB_Transaction_GetStatus(job) == AB_Transaction_StatusError;
+    AB_Transaction_List2_freeAll(jobs);
+
+    // AB_Banking_SendCommands() also returns 0 when the connection failed, and
+    // no transactions may simply mean there were none. But the job only creates
+    // the account's entry in the context once the bank has answered.
+    bool hasAnswer = false;
+    QVariantList transactions;
+    for (const AB_IMEXPORTER_ACCOUNTINFO *info = AB_ImExporterContext_GetFirstAccountInfo(context); info;
+         info = AB_ImExporterAccountInfo_List_Next(info)) {
+        if (AB_ImExporterAccountInfo_GetAccountId(info) == accountId) {
+            hasAnswer = true;
+            transactions += readTransactions(info);
+        }
+    }
+    // A bank that rejects the request does not fail the job or the call, it only
+    // reports an error: without transactions, that is not "no transactions".
+    const bool success = rv >= 0 && hasAnswer && !jobFailed && (!transactions.isEmpty() || lastError.isEmpty());
+
+    if (success) {
+        emit transactionsFetched(accountId, transactions);
+    }
+    AB_ImExporterContext_free(context);
+
+    // A job that fails without an error message never got as far as the bank's
+    // answer being read, or was never sent at all: AqBanking only tells its log.
+    QString message;
+    if (!success) {
+        if (jobFailed && lastError.isEmpty()) {
+            message = hasAnswer ? tr("The bank's answer could not be read.")
+                                : tr("The bank does not offer transactions for this account.");
+        } else {
+            message = failureMessage(rv < 0 ? rv : GWEN_ERROR_GENERIC, tr("The transactions could not be retrieved."));
+        }
+    }
+    emit commandFinished(FetchTransactions, success, message);
 }
 
 void BankingThread::executeRemoveBankAccess(const Command &command)

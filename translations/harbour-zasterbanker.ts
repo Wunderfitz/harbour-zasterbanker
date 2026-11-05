@@ -110,7 +110,7 @@
 <context>
     <name>Banking</name>
     <message>
-        <location filename="../src/Banking.cpp" line="156"/>
+        <location filename="../src/Banking.cpp" line="170"/>
         <source>The key could not be removed from Sailfish Secrets.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -118,89 +118,110 @@
 <context>
     <name>BankingThread</name>
     <message>
-        <location filename="../src/BankingThread.cpp" line="300"/>
+        <location filename="../src/BankingThread.cpp" line="366"/>
         <source>Your stored data cannot be decrypted.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="315"/>
+        <location filename="../src/BankingThread.cpp" line="381"/>
         <source>The banking library could not be started (%1).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="327"/>
-        <location filename="../src/BankingThread.cpp" line="420"/>
-        <location filename="../src/BankingThread.cpp" line="496"/>
+        <location filename="../src/BankingThread.cpp" line="393"/>
+        <location filename="../src/BankingThread.cpp" line="486"/>
+        <location filename="../src/BankingThread.cpp" line="562"/>
+        <location filename="../src/BankingThread.cpp" line="636"/>
         <source>Banking is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="341"/>
+        <location filename="../src/BankingThread.cpp" line="407"/>
         <source>The bank access could not be created.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="346"/>
+        <location filename="../src/BankingThread.cpp" line="412"/>
         <source>Connecting to the bank...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="349"/>
+        <location filename="../src/BankingThread.cpp" line="415"/>
         <source>The bank did not accept the connection.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="362"/>
+        <location filename="../src/BankingThread.cpp" line="428"/>
         <source>Retrieving your accounts...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="365"/>
+        <location filename="../src/BankingThread.cpp" line="431"/>
         <source>The bank did not list your accounts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="401"/>
+        <location filename="../src/BankingThread.cpp" line="467"/>
         <source>TAN method</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="402"/>
+        <location filename="../src/BankingThread.cpp" line="468"/>
         <source>Your bank offers several ways to confirm with a TAN. Which one do you use?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="433"/>
+        <location filename="../src/BankingThread.cpp" line="499"/>
         <source>There are no accounts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="447"/>
+        <location filename="../src/BankingThread.cpp" line="513"/>
         <source>Retrieving balances...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="487"/>
+        <location filename="../src/BankingThread.cpp" line="553"/>
         <source>The bank sent no balances.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="501"/>
+        <location filename="../src/BankingThread.cpp" line="572"/>
+        <source>Retrieving transactions...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/BankingThread.cpp" line="623"/>
+        <source>The bank&apos;s answer could not be read.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/BankingThread.cpp" line="624"/>
+        <source>The bank does not offer transactions for this account.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/BankingThread.cpp" line="626"/>
+        <source>The transactions could not be retrieved.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/BankingThread.cpp" line="641"/>
         <source>The bank access could not be removed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="510"/>
+        <location filename="../src/BankingThread.cpp" line="650"/>
         <source>The stored data could not be removed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="568"/>
+        <location filename="../src/BankingThread.cpp" line="708"/>
         <source>Cancelled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="573"/>
+        <location filename="../src/BankingThread.cpp" line="713"/>
         <source>%1 (Error %2)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -381,37 +402,37 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="212"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="218"/>
         <source>Account %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="263"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="269"/>
         <source>No bank access yet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="264"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="270"/>
         <source>Pull down to add your bank</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="269"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="275"/>
         <source>Stored data unreadable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="269"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="275"/>
         <source>Banking unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="271"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="277"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="294"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="300"/>
         <source>Unlocking your data...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -464,6 +485,34 @@
         <location filename="../qml/pages/TanDialog.qml" line="73"/>
         <location filename="../qml/pages/TanDialog.qml" line="117"/>
         <source>TAN</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>TransactionsPage</name>
+    <message>
+        <location filename="../qml/pages/TransactionsPage.qml" line="84"/>
+        <source>Refresh transactions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/TransactionsPage.qml" line="165"/>
+        <source>Pending</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/TransactionsPage.qml" line="174"/>
+        <source>No transactions</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/TransactionsPage.qml" line="175"/>
+        <source>The bank reports none for the last 90 days.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/TransactionsPage.qml" line="180"/>
+        <source>Transactions unavailable</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

@@ -59,7 +59,8 @@ public:
         AddBankAccess,
         FetchBalances,
         RemoveBankAccess,
-        ResetData
+        ResetData,
+        FetchTransactions
     };
 
     enum InitializationResult {
@@ -89,6 +90,7 @@ public:
     void initialize(const QByteArray &key);
     void addBankAccess(const QVariantMap &bankAccess);
     void fetchBalances();
+    void fetchTransactions(uint accountId);
     void removeBankAccess(uint bankAccessId);
     void resetData();
     void respond(int interactionId, bool accepted, const QString &text, int choice);
@@ -109,6 +111,7 @@ signals:
     void initialized(int result, const QString &message);
     void accountsChanged(const QVariantList &accounts);
     void balancesFetched(const QVariantList &balances);
+    void transactionsFetched(uint accountId, const QVariantList &transactions);
     void commandStarted(int command);
     void commandFinished(int command, bool success, const QString &message);
     void progress(const QString &text);
@@ -132,6 +135,7 @@ private:
     void executeAddBankAccess(const Command &command);
     void executeFetchBalances();
     bool retrieveBalances(QString *errorMessage);
+    void executeFetchTransactions(const Command &command);
     void executeRemoveBankAccess(const Command &command);
     void executeResetData();
     bool chooseTanMethod(uint32_t userUid);

@@ -32,11 +32,16 @@
 #include "Banking.h"
 #include "InstituteSearch.h"
 #include "TanImageProvider.h"
+#include "TransactionModel.h"
 
 int main(int argc, char *argv[])
 {
     QScopedPointer<QGuiApplication> app(SailfishApp::application(argc, argv));
     // Must match OrganizationName and ApplicationName in the .desktop file:
+    // AqBanking would write the raw bank statements to /tmp if these were set.
+    qunsetenv("AQHBCI_LOGBOOKED");
+    qunsetenv("AQHBCI_LOGNOTED");
+
     // Sailjail only lets the app write below ~/.local/share/de.ygriega/zasterbanker.
     app->setOrganizationName(QStringLiteral("de.ygriega"));
     app->setApplicationName(QStringLiteral("zasterbanker"));
@@ -50,6 +55,8 @@ int main(int argc, char *argv[])
                                         QStringLiteral("Banking is exposed as the 'banking' context property"));
     qmlRegisterUncreatableType<AccountModel>("de.ygriega.zasterbanker", 1, 0, "AccountModel",
                                              QStringLiteral("Comes from banking.accounts"));
+    qmlRegisterUncreatableType<TransactionModel>("de.ygriega.zasterbanker", 1, 0, "TransactionModel",
+                                                 QStringLiteral("Comes from banking.transactions"));
 
     // Constructed before the view, so they are destroyed after it and QML never
     // sees them go. The engine takes over the image provider and deletes it with

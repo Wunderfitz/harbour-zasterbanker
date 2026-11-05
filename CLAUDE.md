@@ -16,6 +16,9 @@ you type, enter the login, do the initial handshake with the bank (system ID,
 TAN method, account list) and show the accounts with their current balances.
 photoTAN is the TAN method this iteration is tested with.
 
+Iteration 2 (decided 2026-11-05: the proof of concept is over): the transactions
+of an account, on a page of their own, opened by tapping the account.
+
 ## Ground rules
 
 Set by the project owner at the start; they apply to every iteration.
@@ -184,7 +187,7 @@ unpacked source tree, which works because AqBanking is linked statically.
 
 - `BankingThread` (`src/BankingThread.*`, a `QThread` with `run()`) owns
   AqBanking and works off a queue of commands one at a time: initialise, add
-  a bank access, fetch balances, remove a bank access, reset. AqBanking is
+  a bank access, fetch balances, fetch transactions, remove a bank access, reset. AqBanking is
   synchronous and not thread-safe, so nothing else touches it.
 - AqBanking asks for PIN, TAN or a choice by calling Gwenhywfar's GUI layer
   in the middle of a FinTS dialog. `GwenGui` (`src/GwenGui.*`) implements that
@@ -244,6 +247,54 @@ last fails, the half-made user is deleted again: nothing is left behind.
   `AccountModel::syncedBanks`, with the same total as the overview. More banks
   than fit fade out above the cover action.
 
+### Transactions
+
+- **AqBanking's `swift` parser has to be registered by hand** (found 2026-11-05).
+  Transactions arrive as MT940/MT942, and AqBanking's `swift` importer asks
+  Gwenhywfar for a plugin called `swift`, which is only built as a loadable
+  module: without it, every statement fails. The `.pro` links the
+  `lib/aqbanking/plugins/44/dbio/swift.a` from the build (the `44` changes with
+  AqBanking's plugin version), in front of `-laqbanking`, and `BankingThread::run()`
+  registers `dbio_swift_factory`. The importer's profiles are installed to
+  `/usr/share/harbour-zasterbanker/aqbanking/data/aqbanking/imexporters/swift/profiles`.
+- **CAMT comes first, MT940 is the fallback** (found 2026-11-05 on the project
+  owner's Volksbank: the fetch failed at once, with no PIN prompt). AqBanking only
+  tries MT940 unless an account has `AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD`, and
+  creates that job only if the bank's parameter data for the account lists
+  `HKKAZ`. If not, it gives up silently, without contacting the bank. So
+  `ZB_PreferCamtDownload()` sets the flag before each fetch (rewriting the store
+  only the first time), and AqBanking falls back to MT940 by itself if CAMT is
+  not offered. The `xml` importer's `default.conf` and `camt_*.conf` profiles and
+  its `camt_*.xml` schemas are installed for this. **The `camt_*.conf` files are
+  not optional:** AqBanking derives the formats it can offer the bank from those
+  file names, and without them drops the CAMT job as silently as the MT940 one.
+- **The account needs a BIC, which the account list does not bring** (found
+  2026-11-06: the project owner's Volksbank answered `9160`, a mandatory field
+  missing). `HKCAZ` identifies the account by IBAN and BIC, and only
+  `AH_Provider_GetAccountSepaInfo()` (`HKSPA`, `aqhbci-tool4 getaccsepa`) fills in
+  the BIC. `ZB_EnsureAccountBic()` does this before a fetch if the BIC is missing.
+- **A bank's error without transactions is a failure**: a rejected request neither
+  fails `AB_Banking_SendCommands()` nor the job, and it would otherwise read as
+  "no transactions". The CAMT job also creates the account's context entry before
+  looking at the response, so that entry alone proves nothing.
+- **90 days back.** Under PSD2, banks generally need no TAN up to that age, and
+  most ask for one or refuse anything older.
+- **Fetched once per account while the app runs** (`TransactionModel` keeps them,
+  in memory), so opening an account again costs no request and no TAN. Refresh
+  is in the page's pull-down menu.
+- **Success is not what `AB_Banking_SendCommands()` returns**: that is 0 even if
+  the connection failed. No transactions are fine as well, so the check is that
+  the job did not end in error, the account has an entry in the context, and there
+  are transactions or no error was reported.
+- Pending transactions (MT942) arrive without a currency, so the page falls back
+  to the account's.
+- A statement line the parser found no amount in stays in the list and shows
+  "-": CAMT 052.001.08 reads the amount from `TxDtls`, and leaving such a line out
+  would make the statement look complete when it is not.
+- When a job fails without an error message, the error says which way: never
+  sent ("the bank does not offer...") or answer not readable. AqBanking itself
+  only tells its log, which is off.
+
 ### Data protection
 
 - **Everything AqBanking stores is encrypted.** AqBanking reads and writes its
@@ -266,7 +317,9 @@ last fails, the half-made user is deleted again: nothing is left behind.
 - **The PIN is never stored.** `GwenGui` remembers it for the duration of one
   command (a setup runs several FinTS dialogs) and wipes it when the command
   ends or the bank rejects it.
-- **Balances are kept in memory only**; they are fetched on request.
+- **Balances and transactions are kept in memory only**; they are fetched on
+  request. AqBanking dumps raw statements to `/tmp` if `AQHBCI_LOGBOOKED` or
+  `AQHBCI_LOGNOTED` is set, so `main.cpp` unsets both.
 - **TLS:** Gwenhywfar verifies the chain against the system CA bundle and the
   host name; `GwenGui` accepts a certificate only if that found nothing at
   all - there is no "accept anyway". The certificate must be present (patch
@@ -281,6 +334,12 @@ last fails, the half-made user is deleted again: nothing is left behind.
   first: StyledText also knows `<img>`, which would load from any address, and
   `<a>`. Only `b`, `br`, `i`, `li`, `ol`, `p`, `strong`, `u` and `ul` get
   through, without attributes; other tags are dropped and the rest is escaped.
+- **Transaction texts are plain text, always.** Whoever sends money writes the
+  name and purpose, and Silica's `Label` defaults to `Text.AutoText`: an `<img>`
+  in a purpose would make the app load from that address. Every label in
+  `TransactionsPage` showing such text sets `Text.PlainText`; keep it that way.
+  Known gap: the overview's account name and owner, and page headers and
+  placeholders showing the bank's messages, still use the default.
 - Gwenhywfar switches libgcrypt to "quick random", which downgrades requests
   for `GCRY_VERY_STRONG_RANDOM` to `GCRY_STRONG_RANDOM`. That level is still a
   cryptographically secure generator meant for keys; accepted.
@@ -404,6 +463,23 @@ project unless the owner says so.
   Sailfish Secrets, also on an unmodified page. It got past that on 2026-11-03
   and the phone is not affected. Not looked into yet. UI checks on the emulator
   ran on sample data patched into the QML.
+- 2026-11-05, emulator (5.1): AqBanking's real parser with the installed
+  profiles read sample MT940, MT942 and CAMT 052.001.02 and .08 statements into
+  `TransactionModel` correctly; `ZB_PreferCamtDownload()` sets the flag and it
+  stays. The samples were self-written, and the MT942 and CAMT pending path not
+  run through the job's own merge. AqBanking's real job creation, fed made-up bank
+  parameters, picks CAMT when offered and MT940 when that is all there is, and
+  fails as seen on the phone if the CAMT profiles are missing. The
+  page was checked on sample data: list, expanded row, no transactions, error,
+  and markup in a purpose shown literally.
+- **2026-11-06, real bank, development device: transactions arrive.** On the
+  project owner's Volksbank, tapping an account asked for the PIN, and the
+  transactions showed up with no error. It took all of: the `swift` and CAMT
+  files, the CAMT preference and the BIC. Only a first look so far: amounts, texts,
+  pending entries, TAN during a fetch, other kinds of account and accounts without
+  transactions are still to be tested in detail. Whether the app really uses CAMT
+  there, and the BIC's role, follow from the symptoms and the code; the temporary
+  diagnostics' output for that run was not read in detail.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.
@@ -415,4 +491,4 @@ Iterations are decided one at a time by the project owner. Known so far:
 - All TAN methods FinTS supports: chipTAN optical (flicker code), chipTAN QR,
   decoupled (app approval; AqBanking asks through a message box, which the
   app already shows), chipTAN USB.
-- Transactions, transfers and more - and beyond banking: personal finances.
+- Transfers and more - and beyond banking: personal finances.

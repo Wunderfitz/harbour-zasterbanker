@@ -28,6 +28,15 @@ include($$ZB_DEPS/deps.pri)
 INCLUDEPATH += $$ZB_DEPS/include
 # Gwenhywfar's plugin loader; the app ships no plugins, but the code is linked in.
 LIBS += -ldl
+# AqBanking's parser for bank statements (MT940/MT942). AqBanking builds it as a
+# plugin only; BankingThread registers it with Gwenhywfar instead of loading it.
+ZB_SWIFT_PARSER = $$ZB_DEPS/lib/aqbanking/plugins/44/dbio/swift.a
+!exists($$ZB_SWIFT_PARSER) {
+    error("AqBanking's statement parser for $$ZB_ARCH is missing: $$ZB_SWIFT_PARSER")
+}
+# It needs AqBanking and Gwenhywfar, so it goes in front of them; qmake would drop
+# a second -lgwenhywfar behind it, and with that the first one's place in the order.
+LIBS = $$ZB_SWIFT_PARSER $$LIBS
 
 # The shim speaks AqBanking's internal aqhbci API, which is not installed;
 # its headers come from the unpacked, built source tree, and include each
@@ -54,7 +63,8 @@ SOURCES += \
     src/InstituteSearch.cpp \
     src/InstituteSearchWorker.cpp \
     src/KeyStore.cpp \
-    src/TanImageProvider.cpp
+    src/TanImageProvider.cpp \
+    src/TransactionModel.cpp
 
 HEADERS += \
     src/AccountModel.h \
@@ -67,7 +77,8 @@ HEADERS += \
     src/InstituteSearch.h \
     src/InstituteSearchWorker.h \
     src/KeyStore.h \
-    src/TanImageProvider.h
+    src/TanImageProvider.h \
+    src/TransactionModel.h
 
 DISTFILES += \
     qml/harbour-zasterbanker.qml \
@@ -85,6 +96,7 @@ DISTFILES += \
     qml/pages/SetupPage.qml \
     qml/pages/TanDialog.qml \
     qml/pages/TanMethodDialog.qml \
+    qml/pages/TransactionsPage.qml \
     harbour-zasterbanker.desktop \
     rpm/harbour-zasterbanker.spec \
     rpm/harbour-zasterbanker.changes \
@@ -127,7 +139,20 @@ aqhbci.path = /usr/share/$${TARGET}/aqbanking/data/aqbanking/backends/aqhbci
 locale.files = $$ZB_LOCALE_DIR/*
 locale.path = /usr/share/$${TARGET}/locale
 
-INSTALLS += images database aqhbci locale
+# How to read the bank statements. The path is compiled into AqBanking, as above.
+swiftprofiles.files = $$ZB_DEPS/share/aqbanking/imexporters/swift/profiles/*
+swiftprofiles.path = /usr/share/$${TARGET}/aqbanking/data/aqbanking/imexporters/swift/profiles
+
+# The same for CAMT statements: the importer's profiles and the schemas. AqBanking
+# derives the formats it can offer the bank from the camt_* profiles' names; without
+# them it silently drops the CAMT job.
+camtprofiles.files = $$ZB_DEPS/share/aqbanking/imexporters/xml/profiles/default.conf \
+    $$ZB_DEPS/share/aqbanking/imexporters/xml/profiles/camt_*.conf
+camtprofiles.path = /usr/share/$${TARGET}/aqbanking/data/aqbanking/imexporters/xml/profiles
+camtschemas.files = $$ZB_DEPS/share/aqbanking/imexporters/xml/data/camt_*.xml
+camtschemas.path = /usr/share/$${TARGET}/aqbanking/data/aqbanking/imexporters/xml/data
+
+INSTALLS += images database aqhbci swiftprofiles camtprofiles camtschemas locale
 
 SAILFISHAPP_ICONS = 86x86 108x108 128x128 172x172
 
