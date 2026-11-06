@@ -143,16 +143,6 @@ bool AccountModel::bankTotalComplete(uint bankAccessId) const
     return true;
 }
 
-QString AccountModel::bankNameOf(int bankAccessId) const
-{
-    for (const QVariantMap &account : accounts) {
-        if (account.value(QStringLiteral("bankAccessId")).toInt() == bankAccessId) {
-            return account.value(QStringLiteral("bankName")).toString();
-        }
-    }
-    return QString();
-}
-
 void AccountModel::setAccounts(const QVariantList &newAccounts)
 {
     beginResetModel();

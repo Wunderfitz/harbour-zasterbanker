@@ -367,72 +367,72 @@
 <context>
     <name>OverviewPage</name>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="157"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="67"/>
         <source>About Zaster Banker</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="161"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="71"/>
         <source>Delete all data</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="163"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="73"/>
         <source>Deleting all data</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="166"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="76"/>
         <source>Add bank access</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="172"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="82"/>
         <source>Refresh balances</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="111"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="107"/>
         <source>Remove this bank access</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="99"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="111"/>
         <source>Removing %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="218"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="155"/>
         <source>Account %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="269"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="206"/>
         <source>No bank access yet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="270"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="207"/>
         <source>Pull down to add your bank</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="275"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="212"/>
         <source>Stored data unreadable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="275"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="212"/>
         <source>Banking unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="277"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="214"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="300"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="236"/>
         <source>Unlocking your data...</source>
         <translation type="unfinished"></translation>
     </message>

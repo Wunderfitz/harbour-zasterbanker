@@ -34,12 +34,6 @@ Page {
     readonly property bool ready: banking.state === Banking.Ready
     readonly property bool refreshing: banking.busy && banking.operation === Banking.FetchingBalances
 
-    onStatusChanged: {
-        if (status === PageStatus.Deactivating) {
-            bankDrawer.open = false
-        }
-    }
-
     Connections {
         target: banking
         onOperationFinished: {
@@ -49,236 +43,178 @@ Page {
         }
     }
 
-    // What can be done with a bank access as a whole, opened from its section
-    // header.
-    Drawer {
-        id: bankDrawer
-
-        property int bankAccessId
-        property string bankName
+    SilicaListView {
+        id: accountList
 
         anchors.fill: parent
-        dock: overviewPage.isPortrait ? Dock.Bottom : Dock.Right
-        backgroundSize: overviewPage.isPortrait ? drawerColumn.height + Theme.paddingMedium : width / 2
+        model: overviewPage.ready ? banking.accounts : null
 
-        background: Column {
-            id: drawerColumn
+        header: PageHeader {
+            title: "Zaster Banker"
+            description: overviewPage.refreshing ? banking.progressText : overviewPage.lastError
+        }
 
-            width: parent.width
+        // By bank access, not by bank name: two accesses at the same bank are two
+        // sections. There is no section delegate: a ListView does not lay itself
+        // out again when one grows, so a context menu would cover the first account.
+        // Each account's delegate carries what surrounds it instead.
+        section.property: "bankAccessId"
 
-            Row {
-                x: Theme.horizontalPageMargin
-                width: parent.width - 2 * Theme.horizontalPageMargin
-                height: closeDrawerButton.height + 2 * Theme.paddingSmall
-                spacing: Theme.paddingMedium
+        PullDownMenu {
+            busy: banking.busy || banking.state === Banking.Starting
 
-                Label {
-                    width: parent.width - closeDrawerButton.width - parent.spacing
-                    anchors.verticalCenter: parent.verticalCenter
-                    horizontalAlignment: Text.AlignRight
-                    truncationMode: TruncationMode.Fade
-                    color: Theme.highlightColor
-                    font.pixelSize: Theme.fontSizeLarge
-                    text: bankDrawer.bankName
+            MenuItem {
+                text: qsTr("About Zaster Banker")
+                onClicked: pageStack.push(Qt.resolvedUrl("AboutPage.qml"))
+            }
+            MenuItem {
+                text: qsTr("Delete all data")
+                visible: banking.state === Banking.DataUnreadable
+                onClicked: remorse.execute(qsTr("Deleting all data"), function() { banking.resetAllData() })
+            }
+            MenuItem {
+                text: qsTr("Add bank access")
+                visible: overviewPage.ready
+                enabled: !banking.busy
+                onClicked: pageStack.push(Qt.resolvedUrl("InstituteSearchPage.qml"))
+            }
+            MenuItem {
+                text: qsTr("Refresh balances")
+                visible: overviewPage.ready && accountList.count > 0
+                enabled: !banking.busy
+                onClicked: banking.refreshBalances()
+            }
+        }
+
+        delegate: Column {
+            id: accountRow
+
+            readonly property bool firstOfBank: ListView.section !== ListView.previousSection
+            readonly property bool lastOfBank: ListView.section !== ListView.nextSection
+
+            width: accountList.width
+
+            // What concerns a bank access as a whole is in the context menu of its
+            // name. Accounts are list items of their own, with menus of their own.
+            ListItem {
+                id: bankHeader
+
+                visible: accountRow.firstOfBank
+                contentHeight: bankHeaderLabel.height
+                enabled: !banking.busy
+                menu: ContextMenu {
+                    MenuItem {
+                        text: qsTr("Remove this bank access")
+                        enabled: !banking.busy
+                        onClicked: {
+                            var bankAccess = bankAccessId
+                            remorse.execute(qsTr("Removing %1").arg(bankName), function() {
+                                banking.removeBankAccess(bankAccess)
+                            })
+                        }
+                    }
                 }
-                IconButton {
-                    id: closeDrawerButton
-                    anchors.verticalCenter: parent.verticalCenter
-                    icon.source: "image://theme/icon-m-clear"
-                    onClicked: bankDrawer.open = false
+
+                SectionHeader {
+                    id: bankHeaderLabel
+                    text: bankName
                 }
             }
 
             ListItem {
-                id: removeBankAccessItem
+                id: accountItem
 
+                contentHeight: Math.max(accountColumn.height, balanceColumn.height) + 2 * Theme.paddingMedium
                 enabled: !banking.busy
-                onClicked: {
-                    var bankAccess = bankDrawer.bankAccessId
-                    bankDrawer.open = false
-                    remorse.execute(qsTr("Removing %1").arg(bankDrawer.bankName), function() {
-                        banking.removeBankAccess(bankAccess)
-                    })
+                onClicked: pageStack.push(Qt.resolvedUrl("TransactionsPage.qml"), {
+                                              accountId: accountId,
+                                              accountName: name ? name : (iban ? iban : accountNumber),
+                                              accountIban: iban,
+                                              accountCurrency: currency ? currency : balanceCurrency
+                                          })
+
+                Column {
+                    id: accountColumn
+
+                    anchors {
+                        left: parent.left
+                        leftMargin: Theme.horizontalPageMargin
+                        right: balanceColumn.left
+                        rightMargin: Theme.paddingMedium
+                        verticalCenter: parent.verticalCenter
+                    }
+
+                    Label {
+                        width: parent.width
+                        text: name ? name : (iban ? iban : accountNumber)
+                        color: accountItem.highlighted ? Theme.highlightColor : Theme.primaryColor
+                        truncationMode: TruncationMode.Fade
+                    }
+                    Label {
+                        width: parent.width
+                        text: iban ? Format.iban(iban) : qsTr("Account %1").arg(accountNumber)
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: accountItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
+                        truncationMode: TruncationMode.Fade
+                    }
+                    Label {
+                        width: parent.width
+                        visible: owner.length > 0
+                        text: owner
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: accountItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
+                        truncationMode: TruncationMode.Fade
+                    }
                 }
 
-                Label {
-                    x: Theme.horizontalPageMargin
-                    width: parent.width - 2 * Theme.horizontalPageMargin
-                    anchors.verticalCenter: parent.verticalCenter
-                    horizontalAlignment: Text.AlignHCenter
-                    truncationMode: TruncationMode.Fade
-                    color: removeBankAccessItem.highlighted ? Theme.highlightColor : Theme.primaryColor
-                    text: qsTr("Remove this bank access")
+                Column {
+                    id: balanceColumn
+
+                    anchors {
+                        right: parent.right
+                        rightMargin: Theme.horizontalPageMargin
+                        verticalCenter: parent.verticalCenter
+                    }
+
+                    Label {
+                        anchors.right: parent.right
+                        text: hasBalance ? Format.amount(balance, balanceCurrency) : "–"
+                        color: hasBalance && balance < 0 ? Theme.errorColor
+                                                         : (accountItem.highlighted ? Theme.highlightColor : Theme.primaryColor)
+                        font.pixelSize: Theme.fontSizeMedium
+                    }
+                    Label {
+                        anchors.right: parent.right
+                        visible: hasBalance && balanceDate !== undefined
+                        text: visible ? Format.date(balanceDate) : ""
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: accountItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
+                    }
                 }
+            }
+
+            BankTotal {
+                width: parent.width
+                visible: accountRow.lastOfBank
+                totals: accountRow.lastOfBank ? bankTotals : []
+                complete: bankTotalComplete
             }
         }
 
-        SilicaListView {
-            id: accountList
-
-            anchors.fill: parent
-            model: overviewPage.ready ? banking.accounts : null
-
-            header: PageHeader {
-                title: "Zaster Banker"
-                description: overviewPage.refreshing ? banking.progressText : overviewPage.lastError
-            }
-
-            // By bank access, not by bank name: two accesses at the same bank
-            // are two sections, and the header has to know which one it stands for.
-            section {
-                property: "bankAccessId"
-                delegate: BackgroundItem {
-                    id: bankHeader
-
-                    readonly property int bankAccessId: parseInt(section)
-                    readonly property string bankName: banking.accounts.bankNameOf(bankAccessId)
-
-                    width: accountList.width
-                    height: bankHeaderLabel.height
-                    enabled: !banking.busy
-                    onClicked: {
-                        bankDrawer.bankAccessId = bankAccessId
-                        bankDrawer.bankName = bankName
-                        bankDrawer.open = true
-                    }
-
-                    SectionHeader {
-                        id: bankHeaderLabel
-                        text: bankHeader.bankName
-                    }
-                }
-            }
-
-            PullDownMenu {
-                busy: banking.busy || banking.state === Banking.Starting
-
-                MenuItem {
-                    text: qsTr("About Zaster Banker")
-                    onClicked: pageStack.push(Qt.resolvedUrl("AboutPage.qml"))
-                }
-                MenuItem {
-                    text: qsTr("Delete all data")
-                    visible: banking.state === Banking.DataUnreadable
-                    onClicked: remorse.execute(qsTr("Deleting all data"), function() { banking.resetAllData() })
-                }
-                MenuItem {
-                    text: qsTr("Add bank access")
-                    visible: overviewPage.ready
-                    enabled: !banking.busy
-                    onClicked: pageStack.push(Qt.resolvedUrl("InstituteSearchPage.qml"))
-                }
-                MenuItem {
-                    text: qsTr("Refresh balances")
-                    visible: overviewPage.ready && accountList.count > 0
-                    enabled: !banking.busy
-                    onClicked: banking.refreshBalances()
-                }
-            }
-
-            delegate: Column {
-                id: accountRow
-
-                // Sections have no footer, so the last account of a bank carries the total.
-                readonly property bool lastOfBank: ListView.section !== ListView.nextSection
-
-                width: accountList.width
-
-                ListItem {
-                    id: accountItem
-
-                    contentHeight: Math.max(accountColumn.height, balanceColumn.height) + 2 * Theme.paddingMedium
-                    enabled: !banking.busy
-                    onClicked: pageStack.push(Qt.resolvedUrl("TransactionsPage.qml"), {
-                                                  accountId: accountId,
-                                                  accountName: name ? name : (iban ? iban : accountNumber),
-                                                  accountIban: iban,
-                                                  accountCurrency: currency ? currency : balanceCurrency
-                                              })
-
-                    Column {
-                        id: accountColumn
-
-                        anchors {
-                            left: parent.left
-                            leftMargin: Theme.horizontalPageMargin
-                            right: balanceColumn.left
-                            rightMargin: Theme.paddingMedium
-                            verticalCenter: parent.verticalCenter
-                        }
-
-                        Label {
-                            width: parent.width
-                            text: name ? name : (iban ? iban : accountNumber)
-                            color: accountItem.highlighted ? Theme.highlightColor : Theme.primaryColor
-                            truncationMode: TruncationMode.Fade
-                        }
-                        Label {
-                            width: parent.width
-                            text: iban ? Format.iban(iban) : qsTr("Account %1").arg(accountNumber)
-                            font.pixelSize: Theme.fontSizeExtraSmall
-                            color: accountItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
-                            truncationMode: TruncationMode.Fade
-                        }
-                        Label {
-                            width: parent.width
-                            visible: owner.length > 0
-                            text: owner
-                            font.pixelSize: Theme.fontSizeExtraSmall
-                            color: accountItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
-                            truncationMode: TruncationMode.Fade
-                        }
-                    }
-
-                    Column {
-                        id: balanceColumn
-
-                        anchors {
-                            right: parent.right
-                            rightMargin: Theme.horizontalPageMargin
-                            verticalCenter: parent.verticalCenter
-                        }
-
-                        Label {
-                            anchors.right: parent.right
-                            text: hasBalance ? Format.amount(balance, balanceCurrency) : "–"
-                            color: hasBalance && balance < 0 ? Theme.errorColor
-                                                             : (accountItem.highlighted ? Theme.highlightColor : Theme.primaryColor)
-                            font.pixelSize: Theme.fontSizeMedium
-                        }
-                        Label {
-                            anchors.right: parent.right
-                            visible: hasBalance && balanceDate !== undefined
-                            text: visible ? Format.date(balanceDate) : ""
-                            font.pixelSize: Theme.fontSizeExtraSmall
-                            color: accountItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
-                        }
-                    }
-                }
-
-                BankTotal {
-                    width: parent.width
-                    visible: accountRow.lastOfBank
-                    totals: accountRow.lastOfBank ? bankTotals : []
-                    complete: bankTotalComplete
-                }
-            }
-
-            ViewPlaceholder {
-                enabled: overviewPage.ready && accountList.count === 0 && !banking.busy
-                text: qsTr("No bank access yet")
-                hintText: qsTr("Pull down to add your bank")
-            }
-
-            ViewPlaceholder {
-                enabled: banking.state === Banking.DataUnreadable || banking.state === Banking.Failed
-                text: banking.state === Banking.DataUnreadable ? qsTr("Stored data unreadable") : qsTr("Banking unavailable")
-                hintText: banking.stateMessage + (banking.state === Banking.DataUnreadable
-                                                  ? "\n" + qsTr("Pull down to delete all data and start afresh.") : "")
-            }
-
-            VerticalScrollDecorator {}
+        ViewPlaceholder {
+            enabled: overviewPage.ready && accountList.count === 0 && !banking.busy
+            text: qsTr("No bank access yet")
+            hintText: qsTr("Pull down to add your bank")
         }
+
+        ViewPlaceholder {
+            enabled: banking.state === Banking.DataUnreadable || banking.state === Banking.Failed
+            text: banking.state === Banking.DataUnreadable ? qsTr("Stored data unreadable") : qsTr("Banking unavailable")
+            hintText: banking.stateMessage + (banking.state === Banking.DataUnreadable
+                                              ? "\n" + qsTr("Pull down to delete all data and start afresh.") : "")
+        }
+
+        VerticalScrollDecorator {}
     }
 
     Column {

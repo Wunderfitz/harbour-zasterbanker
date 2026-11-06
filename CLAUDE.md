@@ -227,14 +227,16 @@ last fails, the half-made user is deleted again: nothing is left behind.
 ### Overview page
 
 - **Sections are bank accesses**, keyed by `bankAccessId` rather than the bank
-  name: two accesses at the same bank stay apart, and a section header knows
-  which one it stands for. A section only knows its key, so the name comes from
-  `AccountModel::bankNameOf()`.
-- **What concerns a bank access as a whole is in a `Drawer`** (project owner's
-  decision, 2026-11-05), opened by tapping the section header and built like
-  the one in Fernschreiber's `ChatPage`. It docks at the bottom in portrait and
-  on the right in landscape. Removing an access moved there from the context
-  menu of the single accounts, which no longer exists.
+  name: two accesses at the same bank stay apart. There is **no section delegate**:
+  a `ListView` does not lay itself out again when a section delegate grows, so a
+  context menu in one covers the first account instead of pushing it down (found
+  2026-11-06 on the emulator). The first account row of a bank shows the bank's
+  name instead, as the last one shows the total; `section.property` stays for
+  `ListView.section`, `previousSection` and `nextSection`.
+- **What concerns a bank access as a whole is in the context menu of its name**
+  (project owner's decision, 2026-11-06, replacing a drawer tried the day before),
+  opened by a long press on the name only. A short tap does nothing. The account
+  below is a separate `ListItem`, where menus per account will go.
 - **The total per bank** (added 2026-11-05) is calculated by `AccountModel`,
   as the roles `bankTotals` and `bankTotalComplete`, so it follows every
   `setBalances()` by itself. List sections have no footer, so the last account
@@ -408,8 +410,12 @@ One qmake project at the root, as in Fernschreiber and Chronograph: `src/`,
   `sailjail -p harbour-zasterbanker.desktop /usr/bin/harbour-zasterbanker`.
   A screenshot is `VBoxManage controlvm SailfishOS-5.1.0.11 screenshotpng <file>`,
   typing into the focused field `VBoxManage controlvm SailfishOS-5.1.0.11
-  keyboardputstring <text>`. The SDK key also logs in as `root` there, which
-  the tests use to patch the installed QML temporarily.
+  keyboardputstring <text>`. A real tap or long press goes through VirtualBox's
+  Python API (`vboxapi`): `console.mouse.putMouseEventAbsolute(x, y, 0, 0, 1)`,
+  then the same with `0` to let go, in screenshot pixels; writing to
+  `/dev/input/event*` in the guest does not reach the compositor. The SDK key also
+  logs in as `root` there, which the tests use to patch the installed QML
+  temporarily.
 
 ### Development device
 
@@ -480,6 +486,11 @@ project unless the owner says so.
   transactions are still to be tested in detail. Whether the app really uses CAMT
   there, and the BIC's role, follow from the symptoms and the code; the temporary
   diagnostics' output for that run was not read in detail.
+- 2026-11-06, emulator (5.1), sample data, real touch input: a long press on a
+  bank's name opens its menu and pushes the accounts down, a short tap does
+  nothing, a long press on an account opens no menu, and the entry starts the undo
+  countdown with the right bank and access ID. The removal itself was not carried
+  out.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.

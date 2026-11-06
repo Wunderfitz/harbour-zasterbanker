@@ -62,9 +62,6 @@ public:
     QVariant data(const QModelIndex &index, int role) const override;
     QHash<int, QByteArray> roleNames() const override;
 
-    // The list's sections are the bank accesses; a section only knows the ID.
-    Q_INVOKABLE QString bankNameOf(int bankAccessId) const;
-
     void setAccounts(const QVariantList &accounts);
     void setBalances(const QVariantList &balances);
 
