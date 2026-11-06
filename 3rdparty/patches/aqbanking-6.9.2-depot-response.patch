@@ -1,0 +1,21 @@
+--- aqbanking-6.9.2.orig/src/libs/plugins/backends/aqhbci/ajobs/jobgetdepot.c	2026-11-06 22:38:59.235594698 +0100
++++ aqbanking-6.9.2/src/libs/plugins/backends/aqhbci/ajobs/jobgetdepot.c	2026-11-06 22:38:59.246545657 +0100
+@@ -155,6 +155,18 @@
+       }
+     }
+ 
++    /* Zaster Banker: hbci.xml defines HIWPD version 6 twice, and the decoder takes
++     * the first definition, so version 6 answers arrive under the balance job's name */
++    dbXA=GWEN_DB_GetGroup(dbCurr, GWEN_PATH_FLAGS_NAMEMUSTEXIST, "data/BalanceInvestment");
++    if (dbXA) {
++      const void *p;
++      unsigned int bs;
++
++      p=GWEN_DB_GetBinValue(dbXA, "booked", 0, 0, 0, &bs);
++      if (p && bs)
++        GWEN_Buffer_AppendBytes(dataBuf, p, bs);
++    }
++
+     loop++;
+     dbCurr=GWEN_DB_GetNextGroup(dbCurr);
+   }

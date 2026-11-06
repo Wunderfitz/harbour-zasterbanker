@@ -22,9 +22,29 @@
 // The symbol where there is a common one, the ISO code otherwise.
 var currencySymbols = { "EUR": "€", "USD": "$", "GBP": "£", "CHF": "CHF" }
 
+function currencySymbol(currency) {
+    return currencySymbols[currency] !== undefined ? currencySymbols[currency] : (currency ? currency : "")
+}
+
 function amount(value, currency) {
-    var symbol = currencySymbols[currency] !== undefined ? currencySymbols[currency] : (currency ? currency : "")
-    return Number(value).toLocaleCurrencyString(Qt.locale(), symbol)
+    return Number(value).toLocaleCurrencyString(Qt.locale(), currencySymbol(currency))
+}
+
+// As many decimals as the number has, at most six: fund units and the prices of
+// cheap shares go well beyond cents, and rounding them would misstate them.
+function decimals(value) {
+    var text = Number(value).toFixed(6).replace(/0+$/, "")
+    return text.length - text.indexOf(".") - 1
+}
+
+function units(value) {
+    return Number(value).toLocaleString(Qt.locale(), "f", decimals(value))
+}
+
+function price(value, currency) {
+    var places = decimals(value)
+    return places <= 2 ? amount(value, currency)
+                       : Number(value).toLocaleString(Qt.locale(), "f", places) + " " + currencySymbol(currency)
 }
 
 // IBANs are read and compared in groups of four.

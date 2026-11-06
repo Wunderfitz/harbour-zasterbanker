@@ -167,6 +167,16 @@ archives, and the app links them in.
   - `aqbanking-6.9.2-no-disk-logs.patch`: AqBanking logs every FinTS message
     (account data, balances, transactions) and every job to plain files in its
     data folder. Both are compiled out. Nothing of it reaches the disk.
+  - `aqbanking-6.9.2-depot-response.patch`: `hbci.xml` defines `HIWPD` version 6
+    twice, for the balance job and for `JobGetDepot`. The decoder takes the first,
+    so a version 6 answer arrives as `data/BalanceInvestment`, and `JobGetDepot`,
+    only looking for `data/depotResponse`, failed with "Error processing job"
+    (found 2026-11-06 on the project owner's Volksbank). It now reads both.
+  - `aqbanking-6.9.2-mt535-prices.patch`: the import of depot statements got
+    three things wrong. The parser writes a security's price as a group that
+    `AB_Security_fromDb()` does not read, so every price was lost; a typo in the
+    time format dated every price the 1st of its month; tag `98C` went to a
+    variable nothing read. It also dropped umlauts in names where `char` is signed.
   - `gwenhywfar-5.14.1-require-peer-cert.patch`: Gwenhywfar's HTTPS client
     would carry on with a TLS connection the server presented no certificate
     for. It now requires one.
@@ -187,7 +197,7 @@ unpacked source tree, which works because AqBanking is linked statically.
 
 - `BankingThread` (`src/BankingThread.*`, a `QThread` with `run()`) owns
   AqBanking and works off a queue of commands one at a time: initialise, add
-  a bank access, fetch balances, fetch transactions, remove a bank access, reset. AqBanking is
+  a bank access, fetch balances, fetch transactions, fetch holdings, remove a bank access, reset. AqBanking is
   synchronous and not thread-safe, so nothing else touches it.
 - AqBanking asks for PIN, TAN or a choice by calling Gwenhywfar's GUI layer
   in the middle of a FinTS dialog. `GwenGui` (`src/GwenGui.*`) implements that
@@ -297,6 +307,38 @@ last fails, the half-made user is deleted again: nothing is left behind.
   sent ("the bank does not offer...") or answer not readable. AqBanking itself
   only tells its log, which is off.
 
+### Depots
+
+Added 2026-11-06, after the project owner got an error opening a depot: it went to
+the transactions page, which a depot has no use for.
+
+- **An account is a depot if AqBanking says `AB_AccountType_Investment`**, which
+  comes from the FinTS account types 30-39 and 60-69. `AccountModel` has the role
+  `isDepot`, and the overview opens `DepotPage` for those instead of
+  `TransactionsPage`.
+- **`AB_Transaction_CommandGetDepot`** (`HKWPD` versions 5 and 6, statement in
+  MT535) needs the `swift` parser and the `swiftmt535.conf` profile, which were
+  there for transactions already, and the patch above.
+- **One depot per request.** Securities land in the context as a plain list, with
+  no account to tell them apart. AqBanking's balance job also fetches them for an
+  account whose parameter data lists `HKWPD`, which is why it is not used here.
+- **Success** is a list of securities, or the job ending as accepted without an
+  error: the bank said it carried out the request or that there are no entries
+  (`3010`), which is what an empty depot looks like. AqBanking does not tell a
+  statement it could not parse from that, as it overwrites the job's status with
+  the bank's result code, so that case would read as an empty depot.
+- **The value is units times price**, calculated by us per position, and the total
+  by `HoldingModel`, per currency. The bank's own values (tag `19A`) are not read,
+  as `AB_SECURITY` has no place for them.
+- **Known gap: bonds and anything else not counted in units with a price in a
+  currency.** The parser reads neither nominal values (`93B::AGGR//FAMT`) nor prices
+  in percent (`90A::MRKT//PRCT`). Such a position shows its name and "-", and the
+  total says "not all holdings included". Fixing it means carrying `19A` through a
+  patch.
+- Fetched once per depot while the app runs, like transactions. The value does not
+  reach the overview or the totals per bank: it would make them jump when a depot
+  is first opened.
+
 ### Data protection
 
 - **Everything AqBanking stores is encrypted.** AqBanking reads and writes its
@@ -319,7 +361,7 @@ last fails, the half-made user is deleted again: nothing is left behind.
 - **The PIN is never stored.** `GwenGui` remembers it for the duration of one
   command (a setup runs several FinTS dialogs) and wipes it when the command
   ends or the bank rejects it.
-- **Balances and transactions are kept in memory only**; they are fetched on
+- **Balances, transactions and holdings are kept in memory only**; they are fetched on
   request. AqBanking dumps raw statements to `/tmp` if `AQHBCI_LOGBOOKED` or
   `AQHBCI_LOGNOTED` is set, so `main.cpp` unsets both.
 - **TLS:** Gwenhywfar verifies the chain against the system CA bundle and the
@@ -339,7 +381,8 @@ last fails, the half-made user is deleted again: nothing is left behind.
 - **Transaction texts are plain text, always.** Whoever sends money writes the
   name and purpose, and Silica's `Label` defaults to `Text.AutoText`: an `<img>`
   in a purpose would make the app load from that address. Every label in
-  `TransactionsPage` showing such text sets `Text.PlainText`; keep it that way.
+  `TransactionsPage` showing such text, and in `DepotPage` the bank's names,
+  sets `Text.PlainText`; keep it that way.
   Known gap: the overview's account name and owner, and page headers and
   placeholders showing the bank's messages, still use the default.
 - Gwenhywfar switches libgcrypt to "quick random", which downgrades requests
@@ -491,6 +534,17 @@ project unless the owner says so.
   nothing, a long press on an account opens no menu, and the entry starts the undo
   countdown with the right bank and access ID. The removal itself was not carried
   out.
+- 2026-11-06, emulator (5.1): AqBanking's real importer with the installed profile
+  read a self-written MT535 statement correctly once patched: units, price, currency
+  and date (tags `98A` and `98C`). `DepotPage` was checked with real touch input on
+  sample data fed into the real `HoldingModel`: positions, a total per currency, a
+  bond without a value, an empty depot, an error, and markup in a name shown
+  literally.
+- **2026-11-06, real bank, development device: depots work.** On the project
+  owner's Volksbank, opening a depot showed its holdings, and the project owner found
+  them correct. Before the response patch, the same request failed with "Error
+  processing job", so the bank's answer is `HIWPD` version 6 as far as the symptoms
+  go. Whether that depot holds bonds, and whether a TAN came up, was not reported.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.

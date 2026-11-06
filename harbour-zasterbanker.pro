@@ -64,7 +64,8 @@ SOURCES += \
     src/InstituteSearchWorker.cpp \
     src/KeyStore.cpp \
     src/TanImageProvider.cpp \
-    src/TransactionModel.cpp
+    src/TransactionModel.cpp \
+    src/HoldingModel.cpp
 
 HEADERS += \
     src/AccountModel.h \
@@ -78,7 +79,8 @@ HEADERS += \
     src/InstituteSearchWorker.h \
     src/KeyStore.h \
     src/TanImageProvider.h \
-    src/TransactionModel.h
+    src/TransactionModel.h \
+    src/HoldingModel.h
 
 DISTFILES += \
     qml/harbour-zasterbanker.qml \
@@ -89,6 +91,7 @@ DISTFILES += \
     qml/js/Format.js \
     qml/pages/AboutPage.qml \
     qml/pages/CredentialsDialog.qml \
+    qml/pages/DepotPage.qml \
     qml/pages/InstituteSearchPage.qml \
     qml/pages/MessageDialog.qml \
     qml/pages/OverviewPage.qml \

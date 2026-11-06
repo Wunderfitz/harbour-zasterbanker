@@ -52,7 +52,8 @@ public:
         BalanceCurrencyRole,
         BalanceDateRole,
         BankTotalsRole,
-        BankTotalCompleteRole
+        BankTotalCompleteRole,
+        IsDepotRole
     };
 
     explicit AccountModel(QObject *parent = nullptr);

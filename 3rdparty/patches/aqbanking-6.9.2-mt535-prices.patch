@@ -1,0 +1,55 @@
+--- aqbanking-6.9.2.orig/src/libs/plugins/imexporters/swift/swift.c	2026-05-22 10:55:52.000000000 +0200
++++ aqbanking-6.9.2/src/libs/plugins/imexporters/swift/swift.c	2026-11-06 22:08:27.408741808 +0100
+@@ -368,13 +368,31 @@
+       sec=AB_Security_fromDb(dbT);
+       if (sec) {
+         const char *s;
++        GWEN_DB_NODE *dbValue;
++
++        /* Zaster Banker: the MT535 parser writes the price as a group, which
++         * AB_Security_fromDb() does not read */
++        dbValue=GWEN_DB_GetGroup(dbT, GWEN_PATH_FLAGS_NAMEMUSTEXIST, "unitPriceValue");
++        if (dbValue) {
++          AB_VALUE *v;
++
++          v=AB_Value_fromDb(dbValue);
++          if (v) {
++            AB_Security_SetUnitPriceValue(sec, v);
++            AB_Value_free(v);
++          }
++        }
+ 
+         /* read date */
+         s=GWEN_DB_GetCharValue(dbT, "unitPriceDate", 0, NULL);
++        /* Zaster Banker: tag 98C goes to this variable, which nothing read */
++        if (!(s && *s))
++          s=GWEN_DB_GetCharValue(dbT, "unitPriceDateTime", 0, NULL);
+         if (s && *s) {
+           GWEN_TIME *ti;
+ 
+-          ti=GWEN_Time_fromString(s, "YYYYMMTThhmmss");
++          /* Zaster Banker: "TT" was no day, every price was dated the 1st */
++          ti=GWEN_Time_fromString(s, "YYYYMMDDhhmmss");
+           if (ti==NULL) {
+             GWEN_DATE *dt;
+ 
+@@ -389,6 +407,7 @@
+           }
+           else {
+             AB_Security_SetUnitPriceDate(sec, ti);
++            GWEN_Time_free(ti);
+           }
+         }
+ 
+--- aqbanking-6.9.2.orig/src/libs/plugins/parsers/swift/swift535.c	2026-05-22 10:55:52.000000000 +0200
++++ aqbanking-6.9.2/src/libs/plugins/parsers/swift/swift535.c	2026-11-06 22:08:27.408923461 +0100
+@@ -203,7 +203,8 @@
+   s=(char *)GWEN_Memory_malloc(1024);
+   ss=s;
+   while (*p) {
+-    if (*p>=32)
++    /* Zaster Banker: where char is signed, this dropped all umlauts */
++    if ((unsigned char)*p>=32)
+       *ss++ = *p;
+     p++;
+   }

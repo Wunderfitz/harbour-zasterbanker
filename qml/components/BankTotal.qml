@@ -28,6 +28,7 @@ Item {
 
     property var totals: []
     property bool complete: true
+    property string incompleteText: qsTr("Not all accounts included")
 
     height: totalColumn.height + 2 * Theme.paddingMedium
 
@@ -81,7 +82,7 @@ Item {
             visible: bankTotal.totals.length > 0 && !bankTotal.complete
             font.pixelSize: Theme.fontSizeExtraSmall
             color: Theme.secondaryColor
-            text: qsTr("Not all accounts included")
+            text: bankTotal.incompleteText
         }
     }
 }

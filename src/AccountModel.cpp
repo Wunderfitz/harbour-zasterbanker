@@ -80,6 +80,7 @@ QVariant AccountModel::data(const QModelIndex &index, int role) const
     case BalanceDateRole: return balances.value(accountId).value(QStringLiteral("date"));
     case BankTotalsRole: return bankTotals(account.value(QStringLiteral("bankAccessId")).toUInt());
     case BankTotalCompleteRole: return bankTotalComplete(account.value(QStringLiteral("bankAccessId")).toUInt());
+    case IsDepotRole: return account.value(QStringLiteral("isDepot"));
     }
     return QVariant();
 }
@@ -102,6 +103,7 @@ QHash<int, QByteArray> AccountModel::roleNames() const
     roles.insert(BalanceDateRole, "balanceDate");
     roles.insert(BankTotalsRole, "bankTotals");
     roles.insert(BankTotalCompleteRole, "bankTotalComplete");
+    roles.insert(IsDepotRole, "isDepot");
     return roles;
 }
 

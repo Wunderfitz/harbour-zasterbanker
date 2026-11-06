@@ -126,12 +126,22 @@ Page {
 
                 contentHeight: Math.max(accountColumn.height, balanceColumn.height) + 2 * Theme.paddingMedium
                 enabled: !banking.busy
-                onClicked: pageStack.push(Qt.resolvedUrl("TransactionsPage.qml"), {
-                                              accountId: accountId,
-                                              accountName: name ? name : (iban ? iban : accountNumber),
-                                              accountIban: iban,
-                                              accountCurrency: currency ? currency : balanceCurrency
-                                          })
+                onClicked: {
+                    if (isDepot) {
+                        pageStack.push(Qt.resolvedUrl("DepotPage.qml"), {
+                                           accountId: accountId,
+                                           accountName: name ? name : accountNumber,
+                                           accountNumber: accountNumber
+                                       })
+                    } else {
+                        pageStack.push(Qt.resolvedUrl("TransactionsPage.qml"), {
+                                           accountId: accountId,
+                                           accountName: name ? name : (iban ? iban : accountNumber),
+                                           accountIban: iban,
+                                           accountCurrency: currency ? currency : balanceCurrency
+                                       })
+                    }
+                }
 
                 Column {
                     id: accountColumn

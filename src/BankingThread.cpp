@@ -36,10 +36,12 @@
 #include <aqbanking/types/account_spec.h>
 #include <aqbanking/types/balance.h>
 #include <aqbanking/types/imexporter_context.h>
+#include <aqbanking/types/security.h>
 #include <aqbanking/types/transaction.h>
 #include <gwenhywfar/dbio.h>
 #include <gwenhywfar/gwendate.h>
 #include <gwenhywfar/gwenhywfar.h>
+#include <gwenhywfar/gwentime.h>
 #include <gwenhywfar/logger.h>
 #include <gwenhywfar/plugin.h>
 
@@ -89,6 +91,42 @@ QVariantList readTransactions(const AB_IMEXPORTER_ACCOUNTINFO *info)
         entry.insert(QStringLiteral("purpose"), QString::fromUtf8(AB_Transaction_GetPurpose(transaction)));
         entry.insert(QStringLiteral("kind"), QString::fromUtf8(AB_Transaction_GetTransactionText(transaction)));
         entry.insert(QStringLiteral("pending"), type == AB_Transaction_TypeNotedStatement);
+        result.append(entry);
+    }
+    return result;
+}
+
+// What a depot holds. Only one depot is asked for at a time, so everything in
+// the context is this one's. The value is the bank's price times the units; a
+// position with either missing (bonds, for one: the parser reads neither their
+// nominal value nor their price in percent) has no value rather than a wrong one.
+QVariantList readHoldings(const AB_IMEXPORTER_CONTEXT *context)
+{
+    QVariantList result;
+    for (const AB_SECURITY *security = AB_ImExporterContext_GetFirstSecurity(context); security;
+         security = AB_Security_List_Next(security)) {
+        const AB_VALUE *units = AB_Security_GetUnits(security);
+        const AB_VALUE *price = AB_Security_GetUnitPriceValue(security);
+        QVariantMap entry;
+        entry.insert(QStringLiteral("name"), QString::fromUtf8(AB_Security_GetName(security)));
+        entry.insert(QStringLiteral("idKind"), QString::fromUtf8(AB_Security_GetNameSpace(security)));
+        entry.insert(QStringLiteral("identifier"), QString::fromUtf8(AB_Security_GetUniqueId(security)));
+        entry.insert(QStringLiteral("hasUnits"), units != nullptr);
+        entry.insert(QStringLiteral("units"), units ? AB_Value_GetValueAsDouble(units) : 0.0);
+        entry.insert(QStringLiteral("hasPrice"), price != nullptr);
+        entry.insert(QStringLiteral("price"), price ? AB_Value_GetValueAsDouble(price) : 0.0);
+        entry.insert(QStringLiteral("currency"), price ? QString::fromUtf8(AB_Value_GetCurrency(price)) : QString());
+        const GWEN_TIME *priceDate = AB_Security_GetUnitPriceDate(security);
+        if (priceDate) {
+            int day = 0;
+            int month = 0;
+            int year = 0;
+            // Gwenhywfar counts the months of a broken down date from 0.
+            GWEN_Time_GetBrokenDownDate(priceDate, &day, &month, &year);
+            entry.insert(QStringLiteral("priceDate"), QDate(year, month + 1, day));
+        }
+        entry.insert(QStringLiteral("hasValue"), units != nullptr && price != nullptr);
+        entry.insert(QStringLiteral("value"), units && price ? AB_Value_GetValueAsDouble(units) * AB_Value_GetValueAsDouble(price) : 0.0);
         result.append(entry);
     }
     return result;
@@ -165,6 +203,14 @@ void BankingThread::fetchTransactions(uint accountId)
 {
     Command command;
     command.type = FetchTransactions;
+    command.arguments.insert(QStringLiteral("accountId"), accountId);
+    enqueue(command);
+}
+
+void BankingThread::fetchHoldings(uint accountId)
+{
+    Command command;
+    command.type = FetchHoldings;
     command.arguments.insert(QStringLiteral("accountId"), accountId);
     enqueue(command);
 }
@@ -329,6 +375,9 @@ void BankingThread::run()
             break;
         case FetchTransactions:
             executeFetchTransactions(command);
+            break;
+        case FetchHoldings:
+            executeFetchHoldings(command);
             break;
         case RemoveBankAccess:
             executeRemoveBankAccess(command);
@@ -629,6 +678,52 @@ void BankingThread::executeFetchTransactions(const Command &command)
     emit commandFinished(FetchTransactions, success, message);
 }
 
+void BankingThread::executeFetchHoldings(const Command &command)
+{
+    emit commandStarted(FetchHoldings);
+    if (!banking) {
+        emit commandFinished(FetchHoldings, false, tr("Banking is not available."));
+        return;
+    }
+    const uint accountId = command.arguments.value(QStringLiteral("accountId")).toUInt();
+
+    reportProgress(tr("Retrieving holdings..."));
+    lastError.clear();
+
+    AB_TRANSACTION *job = AB_Transaction_new();
+    AB_Transaction_SetCommand(job, AB_Transaction_CommandGetDepot);
+    AB_Transaction_SetUniqueAccountId(job, accountId);
+    AB_TRANSACTION_LIST2 *jobs = AB_Transaction_List2_new();
+    AB_Transaction_List2_PushBack(jobs, job);
+
+    AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
+    const int rv = AB_Banking_SendCommands(banking, jobs, context);
+    const AB_TRANSACTION_STATUS status = AB_Transaction_GetStatus(job);
+    AB_Transaction_List2_freeAll(jobs);
+
+    const QVariantList holdings = readHoldings(context);
+    AB_ImExporterContext_free(context);
+
+    // Unlike with transactions, the context has no entry for the account to prove
+    // an answer. The job does: it only ends up accepted if the bank said it carried
+    // out the request or has no entries, which is what an empty depot looks like.
+    const bool success = rv >= 0 && (!holdings.isEmpty() || (status == AB_Transaction_StatusAccepted && lastError.isEmpty()));
+
+    if (success) {
+        emit holdingsFetched(accountId, holdings);
+    }
+
+    QString message;
+    if (!success) {
+        // Error without a message: never sent, as AqBanking found no job for this
+        // account in the bank's parameters, and only tells its log.
+        message = status == AB_Transaction_StatusError && lastError.isEmpty()
+                ? tr("The bank does not offer the holdings of this account.")
+                : failureMessage(rv < 0 ? rv : GWEN_ERROR_GENERIC, tr("The holdings could not be retrieved."));
+    }
+    emit commandFinished(FetchHoldings, success, message);
+}
+
 void BankingThread::executeRemoveBankAccess(const Command &command)
 {
     emit commandStarted(RemoveBankAccess);
@@ -683,7 +778,7 @@ void BankingThread::publishAccounts()
             account.insert(QStringLiteral("name"), QString::fromUtf8(AB_AccountSpec_GetAccountName(spec)));
             account.insert(QStringLiteral("owner"), QString::fromUtf8(AB_AccountSpec_GetOwnerName(spec)));
             account.insert(QStringLiteral("currency"), QString::fromUtf8(AB_AccountSpec_GetCurrency(spec)));
-            account.insert(QStringLiteral("type"), AB_AccountSpec_GetType(spec));
+            account.insert(QStringLiteral("isDepot"), AB_AccountSpec_GetType(spec) == AB_AccountType_Investment);
             accounts.append(account);
         }
         AB_AccountSpec_List_free(specs);

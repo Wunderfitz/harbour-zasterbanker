@@ -33,6 +33,7 @@
 #include "InstituteSearch.h"
 #include "TanImageProvider.h"
 #include "TransactionModel.h"
+#include "HoldingModel.h"
 
 int main(int argc, char *argv[])
 {
@@ -57,6 +58,8 @@ int main(int argc, char *argv[])
                                              QStringLiteral("Comes from banking.accounts"));
     qmlRegisterUncreatableType<TransactionModel>("de.ygriega.zasterbanker", 1, 0, "TransactionModel",
                                                  QStringLiteral("Comes from banking.transactions"));
+    qmlRegisterUncreatableType<HoldingModel>("de.ygriega.zasterbanker", 1, 0, "HoldingModel",
+                                             QStringLiteral("Comes from banking.holdings"));
 
     // Constructed before the view, so they are destroyed after it and QML never
     // sees them go. The engine takes over the image provider and deletes it with

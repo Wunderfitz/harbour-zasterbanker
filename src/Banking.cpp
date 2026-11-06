@@ -41,6 +41,8 @@ Banking::Banking(const QString &dataDirectory, TanImageProvider *tanImageProvide
     connect(&thread, &BankingThread::balancesFetched, &accountModel, &AccountModel::setBalances);
     connect(&thread, &BankingThread::accountsChanged, &transactionModel, &TransactionModel::retainAccounts);
     connect(&thread, &BankingThread::transactionsFetched, &transactionModel, &TransactionModel::setTransactions);
+    connect(&thread, &BankingThread::accountsChanged, &holdingModel, &HoldingModel::retainAccounts);
+    connect(&thread, &BankingThread::holdingsFetched, &holdingModel, &HoldingModel::setHoldings);
     connect(&thread, &BankingThread::commandStarted, this, &Banking::handleCommandStarted);
     connect(&thread, &BankingThread::commandFinished, this, &Banking::handleCommandFinished);
     connect(&thread, &BankingThread::progress, this, &Banking::handleProgress);
@@ -87,6 +89,11 @@ TransactionModel *Banking::transactions()
     return &transactionModel;
 }
 
+HoldingModel *Banking::holdings()
+{
+    return &holdingModel;
+}
+
 AccountModel *Banking::accounts()
 {
     return &accountModel;
@@ -118,6 +125,13 @@ void Banking::fetchTransactions(int accountId)
 {
     if (currentState == Ready && !busy()) {
         thread.fetchTransactions(static_cast<uint>(accountId));
+    }
+}
+
+void Banking::fetchHoldings(int accountId)
+{
+    if (currentState == Ready && !busy()) {
+        thread.fetchHoldings(static_cast<uint>(accountId));
     }
 }
 

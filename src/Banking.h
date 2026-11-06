@@ -29,6 +29,7 @@
 #include "BankingThread.h"
 #include "KeyStore.h"
 #include "TransactionModel.h"
+#include "HoldingModel.h"
 
 class TanImageProvider;
 
@@ -51,6 +52,7 @@ class Banking : public QObject
     Q_PROPERTY(QString progressText READ progressText NOTIFY progressTextChanged)
     Q_PROPERTY(AccountModel *accounts READ accounts CONSTANT)
     Q_PROPERTY(TransactionModel *transactions READ transactions CONSTANT)
+    Q_PROPERTY(HoldingModel *holdings READ holdings CONSTANT)
 
 public:
     enum State {
@@ -67,7 +69,8 @@ public:
         FetchingBalances = BankingThread::FetchBalances,
         RemovingBankAccess = BankingThread::RemoveBankAccess,
         ResettingData = BankingThread::ResetData,
-        FetchingTransactions = BankingThread::FetchTransactions
+        FetchingTransactions = BankingThread::FetchTransactions,
+        FetchingHoldings = BankingThread::FetchHoldings
     };
     Q_ENUM(Operation)
 
@@ -90,11 +93,13 @@ public:
     QString progressText() const;
     AccountModel *accounts();
     TransactionModel *transactions();
+    HoldingModel *holdings();
 
     Q_INVOKABLE void addBankAccess(const QString &bankCode, const QString &bankName, const QString &serverUrl,
                                    const QString &userId, const QString &customerId);
     Q_INVOKABLE void refreshBalances();
     Q_INVOKABLE void fetchTransactions(int accountId);
+    Q_INVOKABLE void fetchHoldings(int accountId);
     Q_INVOKABLE void removeBankAccess(int bankAccessId);
     Q_INVOKABLE void respond(int interactionId, bool accepted, const QString &text, int choice);
     /** Aborts whatever the bank is waiting for: the running operation fails as cancelled. */
@@ -131,6 +136,7 @@ private:
     KeyStore keyStore;
     AccountModel accountModel;
     TransactionModel transactionModel;
+    HoldingModel holdingModel;
     TanImageProvider *tanImageProvider;
     State currentState;
     QString currentStateMessage;
