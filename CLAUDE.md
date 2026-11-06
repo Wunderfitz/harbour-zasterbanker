@@ -544,7 +544,8 @@ project unless the owner says so.
   owner's Volksbank, opening a depot showed its holdings, and the project owner found
   them correct. Before the response patch, the same request failed with "Error
   processing job", so the bank's answer is `HIWPD` version 6 as far as the symptoms
-  go. Whether that depot holds bonds, and whether a TAN came up, was not reported.
+  go. That depot holds only shares and the bank asked for no TAN, so funds, bonds and
+  a TAN during a depot fetch are still untested on a real bank.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.

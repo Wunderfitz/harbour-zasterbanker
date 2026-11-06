@@ -92,9 +92,50 @@ Page {
 
             // Tapping shows everything a transaction says.
             property bool expanded: false
+            // Outlasts expanded while the row closes: the text has to stay until the
+            // row has shrunk, and the row's height then comes from collapsedHeight.
+            property bool showDetails: false
+            property real collapsedHeight
+            // Only on a tap, not when the list creates rows or the screen rotates.
+            property bool animateHeight: false
 
-            contentHeight: Math.max(textColumn.height, amountColumn.height) + 2 * Theme.paddingMedium
-            onClicked: expanded = !expanded
+            contentHeight: showDetails && !expanded ? collapsedHeight
+                                                    : Math.max(textColumn.height, amountColumn.height) + 2 * Theme.paddingMedium
+            clip: heightAnimation.running
+
+            onClicked: {
+                animateHeight = true
+                if (expanded) {
+                    expanded = false
+                    // Nothing to animate if the details took up no room.
+                    if (!heightAnimation.running && contentHeight === collapsedHeight) {
+                        showDetails = false
+                    }
+                } else {
+                    if (!showDetails) {
+                        collapsedHeight = contentHeight
+                        showDetails = true
+                    }
+                    expanded = true
+                }
+            }
+
+            Behavior on contentHeight {
+                enabled: transactionItem.animateHeight
+
+                NumberAnimation {
+                    id: heightAnimation
+
+                    duration: 200
+                    easing.type: Easing.InOutQuad
+                    onRunningChanged: {
+                        if (!running) {
+                            transactionItem.animateHeight = false
+                            transactionItem.showDetails = transactionItem.expanded
+                        }
+                    }
+                }
+            }
 
             Column {
                 id: textColumn
@@ -104,7 +145,10 @@ Page {
                     leftMargin: Theme.horizontalPageMargin
                     right: amountColumn.left
                     rightMargin: Theme.paddingMedium
-                    verticalCenter: parent.verticalCenter
+                    // Centred if it is the smaller column. It must not centre itself
+                    // in a row still resizing, as it would stick out above the row.
+                    top: parent.top
+                    topMargin: Math.max(Theme.paddingMedium, (parent.height - height) / 2)
                 }
 
                 Label {
@@ -122,12 +166,12 @@ Page {
                     font.pixelSize: Theme.fontSizeExtraSmall
                     color: transactionItem.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
                     wrapMode: Text.Wrap
-                    maximumLineCount: transactionItem.expanded ? 100 : 2
+                    maximumLineCount: transactionItem.showDetails ? 100 : 2
                     truncationMode: TruncationMode.Elide
                 }
                 Label {
                     width: parent.width
-                    visible: transactionItem.expanded && text.length > 0
+                    visible: transactionItem.showDetails && text.length > 0
                     textFormat: Text.PlainText
                     text: iban ? Format.iban(iban) : ""
                     font.pixelSize: Theme.fontSizeExtraSmall
@@ -136,7 +180,7 @@ Page {
                 }
                 Label {
                     width: parent.width
-                    visible: transactionItem.expanded && name.length > 0 && text.length > 0
+                    visible: transactionItem.showDetails && name.length > 0 && text.length > 0
                     textFormat: Text.PlainText
                     text: kind
                     font.pixelSize: Theme.fontSizeExtraSmall

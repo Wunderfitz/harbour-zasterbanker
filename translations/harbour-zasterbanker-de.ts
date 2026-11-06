@@ -545,22 +545,22 @@
         <translation>Umsätze aktualisieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="165"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="209"/>
         <source>Pending</source>
         <translation>Vorgemerkt</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="174"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="218"/>
         <source>No transactions</source>
         <translation>Keine Umsätze</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="175"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="219"/>
         <source>The bank reports none for the last 90 days.</source>
         <translation>Die Bank meldet für die letzten 90 Tage keine.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="180"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="224"/>
         <source>Transactions unavailable</source>
         <translation>Umsätze nicht verfügbar</translation>
     </message>
