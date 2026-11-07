@@ -118,126 +118,126 @@
 <context>
     <name>BankingThread</name>
     <message>
-        <location filename="../src/BankingThread.cpp" line="415"/>
+        <location filename="../src/BankingThread.cpp" line="429"/>
         <source>Your stored data cannot be decrypted.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="430"/>
+        <location filename="../src/BankingThread.cpp" line="444"/>
         <source>The banking library could not be started (%1).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="442"/>
-        <location filename="../src/BankingThread.cpp" line="535"/>
-        <location filename="../src/BankingThread.cpp" line="611"/>
-        <location filename="../src/BankingThread.cpp" line="685"/>
-        <location filename="../src/BankingThread.cpp" line="731"/>
+        <location filename="../src/BankingThread.cpp" line="456"/>
+        <location filename="../src/BankingThread.cpp" line="549"/>
+        <location filename="../src/BankingThread.cpp" line="625"/>
+        <location filename="../src/BankingThread.cpp" line="699"/>
+        <location filename="../src/BankingThread.cpp" line="745"/>
         <source>Banking is not available.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="456"/>
+        <location filename="../src/BankingThread.cpp" line="470"/>
         <source>The bank access could not be created.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="461"/>
+        <location filename="../src/BankingThread.cpp" line="475"/>
         <source>Connecting to the bank...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="464"/>
+        <location filename="../src/BankingThread.cpp" line="478"/>
         <source>The bank did not accept the connection.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="477"/>
+        <location filename="../src/BankingThread.cpp" line="491"/>
         <source>Retrieving your accounts...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="480"/>
+        <location filename="../src/BankingThread.cpp" line="494"/>
         <source>The bank did not list your accounts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="516"/>
+        <location filename="../src/BankingThread.cpp" line="530"/>
         <source>TAN method</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="517"/>
+        <location filename="../src/BankingThread.cpp" line="531"/>
         <source>Your bank offers several ways to confirm with a TAN. Which one do you use?</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="548"/>
+        <location filename="../src/BankingThread.cpp" line="562"/>
         <source>There are no accounts.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="562"/>
+        <location filename="../src/BankingThread.cpp" line="576"/>
         <source>Retrieving balances...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="602"/>
+        <location filename="../src/BankingThread.cpp" line="616"/>
         <source>The bank sent no balances.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="621"/>
+        <location filename="../src/BankingThread.cpp" line="635"/>
         <source>Retrieving transactions...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="672"/>
+        <location filename="../src/BankingThread.cpp" line="686"/>
         <source>The bank&apos;s answer could not be read.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="673"/>
+        <location filename="../src/BankingThread.cpp" line="687"/>
         <source>The bank does not offer transactions for this account.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="675"/>
+        <location filename="../src/BankingThread.cpp" line="689"/>
         <source>The transactions could not be retrieved.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="690"/>
+        <location filename="../src/BankingThread.cpp" line="704"/>
         <source>Retrieving holdings...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="721"/>
+        <location filename="../src/BankingThread.cpp" line="735"/>
         <source>The bank does not offer the holdings of this account.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="722"/>
+        <location filename="../src/BankingThread.cpp" line="736"/>
         <source>The holdings could not be retrieved.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="736"/>
+        <location filename="../src/BankingThread.cpp" line="750"/>
         <source>The bank access could not be removed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="745"/>
+        <location filename="../src/BankingThread.cpp" line="759"/>
         <source>The stored data could not be removed.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="803"/>
+        <location filename="../src/BankingThread.cpp" line="817"/>
         <source>Cancelled.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="808"/>
+        <location filename="../src/BankingThread.cpp" line="822"/>
         <source>%1 (Error %2)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -324,22 +324,22 @@
 <context>
     <name>GwenGui</name>
     <message>
-        <location filename="../src/GwenGui.cpp" line="140"/>
+        <location filename="../src/GwenGui.cpp" line="182"/>
         <source>The TAN has an invalid length.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="141"/>
+        <location filename="../src/GwenGui.cpp" line="183"/>
         <source>The PIN has an invalid length.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="176"/>
+        <location filename="../src/GwenGui.cpp" line="232"/>
         <source>OK</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="263"/>
+        <location filename="../src/GwenGui.cpp" line="319"/>
         <source>The bank&apos;s server could not prove its identity, the connection was refused. %1</source>
         <translation type="unfinished"></translation>
     </message>
@@ -492,6 +492,11 @@
         <location filename="../qml/pages/PinDialog.qml" line="76"/>
         <location filename="../qml/pages/PinDialog.qml" line="92"/>
         <source>PIN</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/PinDialog.qml" line="106"/>
+        <source>Once the bank accepts it, the PIN is remembered for 5 minutes after your last action with this bank access, as long as the app runs.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>

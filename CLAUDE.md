@@ -358,9 +358,24 @@ the transactions page, which a depot has no use for.
   It never touches the file system. A key that cannot be found while
   encrypted data exists is reported, never silently replaced; the way out is
   "Delete all data" on the main page, which removes data and key.
-- **The PIN is never stored.** `GwenGui` remembers it for the duration of one
-  command (a setup runs several FinTS dialogs) and wipes it when the command
-  ends or the bank rejects it.
+- **The PIN is never stored, but kept in memory for 5 minutes** (project
+  owner's decision, 2026-11-07: entering it for every action was too
+  annoying). `GwenGui` remembers it per bank access, by AqBanking's token
+  name (`PIN_<type>_<user>`), only in the app's memory, never in Sailfish
+  Secrets or on disk: that would make it outlive the app. Its rules:
+  - It outlives the command it was entered in only if AqBanking reported the
+    bank accepted it (`GWEN_Gui_PasswordStatus_Ok`). An unconfirmed PIN may
+    be mistyped, and reusing it unasked would use up the bank's few attempts
+    before it locks the access.
+  - It is wiped 5 minutes after the end of the last command that used it;
+    each command for that bank access starts the time again, others do not.
+    Time is `CLOCK_BOOTTIME`, so time asleep counts. The banking thread wakes
+    at least every 15 seconds while a PIN is kept, as its wait does not
+    count suspended time, so an expired PIN is gone seconds after the device
+    wakes; it is never used once expired either way.
+  - It is wiped at once when the bank rejects it, when a bank access is
+    removed or all data is reset (all PINs), and when the app ends.
+  - The PIN dialog says so.
 - **Balances, transactions and holdings are kept in memory only**; they are fetched on
   request. AqBanking dumps raw statements to `/tmp` if `AQHBCI_LOGBOOKED` or
   `AQHBCI_LOGNOTED` is set, so `main.cpp` unsets both.

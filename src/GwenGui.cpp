@@ -32,11 +32,31 @@
 #include <gwenhywfar/ssl_cert_descr.h>
 
 #include <cstring>
+#include <ctime>
 
 namespace {
 
+/*
+ * How long a PIN is remembered after the last command that used it. Each
+ * command for the same bank access starts the time again.
+ */
+const qint64 pinLifetime = 5 * 60 * 1000;
+
+/*
+ * A PIN the user entered. Kept beyond the command it was entered in only if
+ * the bank accepted it: AqBanking reports that through setPasswordStatus().
+ * A PIN that never got that far may be mistyped, and using it again without
+ * asking would cost one of the few attempts before the bank locks the access.
+ */
+struct RememberedPin {
+    QByteArray pin;
+    bool accepted;
+    bool usedByCommand;
+    qint64 lastUsed;
+};
+
 BankingThread *bankingThread = nullptr;
-QMap<QByteArray, QByteArray> pins;
+QMap<QByteArray, RememberedPin> pins;
 uint32_t nextBoxId = 1;
 
 void wipe(QByteArray &data)
@@ -45,6 +65,24 @@ void wipe(QByteArray &data)
         std::memset(data.data(), 0, static_cast<size_t>(data.size()));
     }
     data.clear();
+}
+
+/*
+ * Milliseconds since boot, including the time the device spent suspended:
+ * five minutes with the screen off count as five minutes. QElapsedTimer and
+ * CLOCK_MONOTONIC stand still during suspend.
+ */
+qint64 now()
+{
+    struct timespec time;
+    clock_gettime(CLOCK_BOOTTIME, &time);
+    return static_cast<qint64>(time.tv_sec) * 1000 + time.tv_nsec / 1000000;
+}
+
+void forgetPin(QMap<QByteArray, RememberedPin>::iterator pin)
+{
+    wipe(pin.value().pin);
+    pins.erase(pin);
 }
 
 /*
@@ -106,11 +144,15 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
     const bool isTan = flags & GWEN_GUI_INPUT_FLAGS_TAN;
     const QByteArray tokenName(token ? token : "");
 
-    if (!isTan && !tokenName.isEmpty() && pins.contains(tokenName)) {
-        const QByteArray &pin = pins[tokenName];
-        if (pin.size() < maxLen) {
+    if (!isTan && !tokenName.isEmpty()) {
+        GwenGui::forgetExpiredPins();
+        auto remembered = pins.find(tokenName);
+        if (remembered != pins.end() && remembered.value().pin.size() < maxLen) {
+            const QByteArray &pin = remembered.value().pin;
             std::memcpy(buffer, pin.constData(), static_cast<size_t>(pin.size()));
             buffer[pin.size()] = 0;
+            remembered.value().usedByCommand = true;
+            remembered.value().lastUsed = now();
             return 0;
         }
     }
@@ -144,7 +186,16 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
     std::memcpy(buffer, response.text.constData(), static_cast<size_t>(response.text.size()));
     buffer[response.text.size()] = 0;
     if (!isTan && !tokenName.isEmpty()) {
-        pins.insert(tokenName, response.text);
+        auto previous = pins.find(tokenName);
+        if (previous != pins.end()) {
+            forgetPin(previous);
+        }
+        RememberedPin pin;
+        pin.pin = QByteArray(response.text.constData(), response.text.size());
+        pin.accepted = false;
+        pin.usedByCommand = true;
+        pin.lastUsed = now();
+        pins.insert(tokenName, pin);
     }
     wipe(response.text);
     return 0;
@@ -152,12 +203,17 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
 
 int GWENHYWFAR_CB setPasswordStatus(GWEN_GUI *, const char *token, const char *, GWEN_GUI_PASSWORD_STATUS status, uint32_t)
 {
-    if (token && (status == GWEN_Gui_PasswordStatus_Bad || status == GWEN_Gui_PasswordStatus_Remove)) {
-        auto pin = pins.find(QByteArray(token));
-        if (pin != pins.end()) {
-            wipe(pin.value());
-            pins.erase(pin);
-        }
+    if (!token) {
+        return 0;
+    }
+    auto pin = pins.find(QByteArray(token));
+    if (pin == pins.end()) {
+        return 0;
+    }
+    if (status == GWEN_Gui_PasswordStatus_Bad || status == GWEN_Gui_PasswordStatus_Remove) {
+        forgetPin(pin);
+    } else if (status == GWEN_Gui_PasswordStatus_Ok) {
+        pin.value().accepted = true;
     }
     return 0;
 }
@@ -314,10 +370,48 @@ void destroy(GWEN_GUI *gui)
     bankingThread = nullptr;
 }
 
+void finishCommand()
+{
+    const qint64 finished = now();
+    for (auto pin = pins.begin(); pin != pins.end();) {
+        if (!pin.value().accepted) {
+            wipe(pin.value().pin);
+            pin = pins.erase(pin);
+            continue;
+        }
+        // The time starts when the command ends, not when it first needed the
+        // PIN: waiting for a TAN does not use up the five minutes.
+        if (pin.value().usedByCommand) {
+            pin.value().lastUsed = finished;
+            pin.value().usedByCommand = false;
+        }
+        ++pin;
+    }
+}
+
+qint64 forgetExpiredPins()
+{
+    const qint64 current = now();
+    qint64 next = -1;
+    for (auto pin = pins.begin(); pin != pins.end();) {
+        const qint64 remaining = pin.value().lastUsed + pinLifetime - current;
+        if (remaining <= 0) {
+            wipe(pin.value().pin);
+            pin = pins.erase(pin);
+            continue;
+        }
+        if (next < 0 || remaining < next) {
+            next = remaining;
+        }
+        ++pin;
+    }
+    return next;
+}
+
 void forgetPins()
 {
     for (auto pin = pins.begin(); pin != pins.end(); ++pin) {
-        wipe(pin.value());
+        wipe(pin.value().pin);
     }
     pins.clear();
 }

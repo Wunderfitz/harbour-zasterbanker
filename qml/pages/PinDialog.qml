@@ -96,6 +96,16 @@ Dialog {
                 EnterKey.onClicked: pinDialog.accept()
             }
 
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                visible: pinDialog.secret
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryHighlightColor
+                text: qsTr("Once the bank accepts it, the PIN is remembered for 5 minutes after your last action with this bank access, as long as the app runs.")
+            }
+
             TextField {
                 id: textField
                 width: parent.width

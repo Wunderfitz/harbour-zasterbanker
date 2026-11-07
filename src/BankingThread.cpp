@@ -353,7 +353,17 @@ void BankingThread::run()
         {
             QMutexLocker locker(&mutex);
             while (commands.isEmpty() && !stopRequested) {
-                condition.wait(&mutex);
+                // Remembered PINs are wiped when their time is up, not merely
+                // left unused. The wait does not count time the device spends
+                // suspended, so it wakes at least every 15 seconds while there
+                // is a PIN: a few seconds after the device wakes up, a PIN that
+                // expired meanwhile is gone.
+                const qint64 nextExpiry = GwenGui::forgetExpiredPins();
+                if (nextExpiry < 0) {
+                    condition.wait(&mutex);
+                } else {
+                    condition.wait(&mutex, static_cast<unsigned long>(qMin<qint64>(nextExpiry, 15000)));
+                }
             }
             if (stopRequested) {
                 break;
@@ -386,7 +396,11 @@ void BankingThread::run()
             executeResetData();
             break;
         }
-        GwenGui::forgetPins();
+        if (command.type == RemoveBankAccess || command.type == ResetData) {
+            GwenGui::forgetPins();
+        } else {
+            GwenGui::finishCommand();
+        }
     }
 
     shutDownAqBanking();

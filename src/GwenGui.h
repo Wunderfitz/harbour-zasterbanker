@@ -20,6 +20,8 @@
 #ifndef GWENGUI_H
 #define GWENGUI_H
 
+#include <QtGlobal>
+
 #include <gwenhywfar/gui.h>
 
 class BankingThread;
@@ -32,15 +34,26 @@ class BankingThread;
  * TAN methods), progress and the check of the bank's TLS certificate. They are
  * all called on the banking thread.
  *
- * The PIN is kept in memory for the duration of one command, so that the
- * several dialogs of a setup ask for it once, and wiped when the command ends.
- * It is never written anywhere.
+ * A PIN is kept in memory, per bank access, for five minutes after the last
+ * command that used it, so that the user does not have to enter it for every
+ * action, and only if the bank accepted it. Then, or as soon as the bank
+ * rejects it, it is wiped. It is never written anywhere.
  */
 namespace GwenGui
 {
 GWEN_GUI *create(BankingThread *thread);
 void destroy(GWEN_GUI *gui);
-/** Wipes the PINs remembered during the command that just ended. */
+/**
+ * To be called after each command: forgets the PINs the bank did not accept,
+ * and starts the five minutes again for those the command used.
+ */
+void finishCommand();
+/**
+ * Wipes the PINs whose time is up. Returns the milliseconds until the next
+ * one is due, or -1 if no PIN is remembered.
+ */
+qint64 forgetExpiredPins();
+/** Wipes all remembered PINs. */
 void forgetPins();
 }
 
