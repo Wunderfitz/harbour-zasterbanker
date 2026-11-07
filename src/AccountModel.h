@@ -27,8 +27,9 @@
 /**
  * The accounts of all bank accesses, with the last balance fetched for each.
  *
- * Balances live in memory only: they are fetched again whenever the user asks,
- * so nothing about them is ever written to disk.
+ * The banking thread keeps the last balances in the encrypted store and
+ * publishes them at start, so the last known ones show until the user fetches
+ * new ones. Each shows its date, so an old one does not pass for current.
  */
 class AccountModel : public QAbstractListModel
 {
@@ -73,6 +74,7 @@ signals:
 private:
     QVariantList bankTotals(uint bankAccessId) const;
     bool bankTotalComplete(uint bankAccessId) const;
+    QVariant balanceDate(uint accountId) const;
 
     QList<QVariantMap> accounts;
     QHash<uint, QVariantMap> balances;

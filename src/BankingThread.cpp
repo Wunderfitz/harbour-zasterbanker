@@ -24,7 +24,9 @@
 #include "FinTsRegistration.h"
 #include "GwenGui.h"
 
+#include <QDataStream>
 #include <QDate>
+#include <QDateTime>
 #include <QDebug>
 #include <QDir>
 #include <QFile>
@@ -52,6 +54,10 @@
 extern "C" GWEN_PLUGIN *dbio_swift_factory(GWEN_PLUGIN_MANAGER *pm, const char *modName, const char *fileName);
 
 namespace {
+
+// Where the last balances are kept in the encrypted store, and their format.
+const QString BALANCES_NAME = QStringLiteral("balances");
+const qint32 BALANCES_VERSION = 1;
 
 // How far back transactions are asked for. Under PSD2, banks generally need no
 // TAN up to this age, and most ask for one or refuse anything older.
@@ -445,6 +451,7 @@ void BankingThread::executeInitialize(Command &command)
         return;
     }
 
+    loadStoredBalances();
     emit initialized(InitializationSucceeded, QString());
     publishAccounts();
 }
@@ -577,6 +584,7 @@ bool BankingThread::retrieveBalances(QString *errorMessage)
     rv = AB_Banking_SendCommands(banking, jobs, context);
     AB_Transaction_List2_freeAll(jobs);
 
+    const QDateTime fetched = QDateTime::currentDateTimeUtc();
     QVariantList balances;
     for (AB_IMEXPORTER_ACCOUNTINFO *info = AB_ImExporterContext_GetFirstAccountInfo(context); info;
          info = AB_ImExporterAccountInfo_List_Next(info)) {
@@ -600,6 +608,7 @@ bool BankingThread::retrieveBalances(QString *errorMessage)
         entry.insert(QStringLiteral("accountId"), AB_ImExporterAccountInfo_GetAccountId(info));
         entry.insert(QStringLiteral("balance"), AB_Value_GetValueAsDouble(value));
         entry.insert(QStringLiteral("currency"), QString::fromUtf8(AB_Value_GetCurrency(value)));
+        entry.insert(QStringLiteral("fetched"), fetched);
         const GWEN_DATE *date = AB_Balance_GetDate(chosen);
         if (date) {
             entry.insert(QStringLiteral("date"), QDate(GWEN_Date_GetYear(date), GWEN_Date_GetMonth(date), GWEN_Date_GetDay(date)));
@@ -609,6 +618,7 @@ bool BankingThread::retrieveBalances(QString *errorMessage)
     AB_ImExporterContext_free(context);
 
     if (!balances.isEmpty()) {
+        storeBalances(balances);
         emit balancesFetched(balances);
     }
     const bool success = rv >= 0 && !balances.isEmpty();
@@ -754,6 +764,7 @@ void BankingThread::executeResetData()
 {
     emit commandStarted(ResetData);
     shutDownAqBanking();
+    storedBalances.clear();
     const bool removed = !QFile::exists(dataFilePath()) || QFile::remove(dataFilePath());
     emit accountsChanged(QVariantList());
     emit commandFinished(ResetData, removed, removed ? QString() : tr("The stored data could not be removed."));
@@ -798,6 +809,91 @@ void BankingThread::publishAccounts()
         AB_AccountSpec_List_free(specs);
     }
     emit accountsChanged(accounts);
+
+    // The last known balances, until new ones arrive. Those of accounts that
+    // are gone (a bank access was removed) are not kept any longer.
+    QSet<uint> accountIds;
+    for (const QVariant &account : accounts) {
+        accountIds.insert(account.toMap().value(QStringLiteral("accountId")).toUInt());
+    }
+    bool pruned = false;
+    for (auto balance = storedBalances.begin(); balance != storedBalances.end();) {
+        if (accountIds.contains(balance.key())) {
+            ++balance;
+        } else {
+            balance = storedBalances.erase(balance);
+            pruned = true;
+        }
+    }
+    if (pruned) {
+        saveStoredBalances();
+    }
+    if (!storedBalances.isEmpty()) {
+        emit balancesFetched(storedBalanceList());
+    }
+}
+
+QVariantList BankingThread::storedBalanceList() const
+{
+    QVariantList balances;
+    for (const QVariantMap &balance : storedBalances) {
+        balances.append(balance);
+    }
+    return balances;
+}
+
+void BankingThread::loadStoredBalances()
+{
+    storedBalances.clear();
+    const QByteArray data = configStore->appData(BALANCES_NAME);
+    if (data.isEmpty()) {
+        return;
+    }
+    QDataStream stream(data);
+    stream.setVersion(QDataStream::Qt_5_6);
+    qint32 version = 0;
+    QVariantList balances;
+    stream >> version;
+    if (version != BALANCES_VERSION) {
+        return;
+    }
+    stream >> balances;
+    if (stream.status() != QDataStream::Ok) {
+        return;
+    }
+    for (const QVariant &balance : balances) {
+        const QVariantMap entry = balance.toMap();
+        storedBalances.insert(entry.value(QStringLiteral("accountId")).toUInt(), entry);
+    }
+}
+
+/*
+ * Balances fetched just now replace the stored ones of their accounts; the
+ * others stay as they were, as on the overview.
+ */
+void BankingThread::storeBalances(const QVariantList &balances)
+{
+    for (const QVariant &balance : balances) {
+        const QVariantMap entry = balance.toMap();
+        storedBalances.insert(entry.value(QStringLiteral("accountId")).toUInt(), entry);
+    }
+    saveStoredBalances();
+}
+
+void BankingThread::saveStoredBalances()
+{
+    if (!configStore) {
+        return;
+    }
+    QByteArray data;
+    {
+        QDataStream stream(&data, QIODevice::WriteOnly);
+        stream.setVersion(QDataStream::Qt_5_6);
+        stream << BALANCES_VERSION << storedBalanceList();
+    }
+    if (!configStore->setAppData(BALANCES_NAME, data)) {
+        qWarning() << "The balances could not be stored";
+    }
 }
 
 void BankingThread::shutDownAqBanking()

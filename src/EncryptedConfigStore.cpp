@@ -50,6 +50,12 @@ const int HEADER_LENGTH = sizeof(MAGIC) + 1;
 const int NONCE_LENGTH = 12;
 const int TAG_LENGTH = 16;
 
+/*
+ * The group of the app's own data. Not one of AqBanking's group names, and left
+ * out when AqBanking lists the groups.
+ */
+const QString APP_GROUP = QStringLiteral("zasterbanker");
+
 EncryptedConfigStore *activeStore = nullptr;
 
 void wipe(QByteArray &data)
@@ -285,7 +291,9 @@ int EncryptedConfigStore::deleteGroup(const char *groupName, const char *subGrou
 int EncryptedConfigStore::listGroups(GWEN_STRINGLIST *sl) const
 {
     for (auto group = groups.constBegin(); group != groups.constEnd(); ++group) {
-        GWEN_StringList_AppendString(sl, group.key().toUtf8().constData(), 0, 1);
+        if (group.key() != APP_GROUP) {
+            GWEN_StringList_AppendString(sl, group.key().toUtf8().constData(), 0, 1);
+        }
     }
     return 0;
 }
@@ -293,7 +301,7 @@ int EncryptedConfigStore::listGroups(GWEN_STRINGLIST *sl) const
 int EncryptedConfigStore::listSubGroups(const char *groupName, GWEN_STRINGLIST *sl) const
 {
     const auto group = groups.constFind(QString::fromUtf8(groupName));
-    if (group == groups.constEnd()) {
+    if (group == groups.constEnd() || group.key() == APP_GROUP) {
         return 0;
     }
     for (auto entry = group->constBegin(); entry != group->constEnd(); ++entry) {
@@ -313,6 +321,19 @@ int EncryptedConfigStore::getUniqueId(const char *groupName, char *buffer, uint3
     }
     std::snprintf(buffer, bufferLen, "uid::%08x", uid);
     return 0;
+}
+
+QByteArray EncryptedConfigStore::appData(const QString &name) const
+{
+    return groups.value(APP_GROUP).value(name);
+}
+
+bool EncryptedConfigStore::setAppData(const QString &name, const QByteArray &data)
+{
+    QByteArray &entry = groups[APP_GROUP][name];
+    wipe(entry);
+    entry = data;
+    return save();
 }
 
 bool EncryptedConfigStore::save()

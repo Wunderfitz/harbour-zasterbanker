@@ -41,6 +41,10 @@ extern "C" {
  *
  * The contents are held in memory as serialised GWEN_DB groups; every change
  * rewrites the encrypted file atomically. Only the banking thread uses it.
+ *
+ * The app keeps a few things of its own in the same file (appData()), in a
+ * group AqBanking neither knows nor gets to see: they are protected exactly
+ * like AqBanking's data and go with it when all data is deleted.
  */
 class EncryptedConfigStore
 {
@@ -69,6 +73,11 @@ public:
     int listGroups(GWEN_STRINGLIST *sl) const;
     int listSubGroups(const char *groupName, GWEN_STRINGLIST *sl) const;
     int getUniqueId(const char *groupName, char *buffer, uint32_t bufferLen);
+
+    /** The app's own data stored under the given name, empty if there is none. */
+    QByteArray appData(const QString &name) const;
+    /** Stores the app's own data under the given name, replacing what was there. */
+    bool setAppData(const QString &name, const QByteArray &data);
 
 private:
     bool save();

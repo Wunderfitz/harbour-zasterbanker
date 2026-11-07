@@ -21,6 +21,7 @@
 #define BANKINGTHREAD_H
 
 #include <QByteArray>
+#include <QHash>
 #include <QImage>
 #include <QMutex>
 #include <QQueue>
@@ -144,6 +145,10 @@ private:
     void executeResetData();
     bool chooseTanMethod(uint32_t userUid);
     void publishAccounts();
+    void loadStoredBalances();
+    void storeBalances(const QVariantList &balances);
+    void saveStoredBalances();
+    QVariantList storedBalanceList() const;
     void shutDownAqBanking();
     QString failureMessage(int errorCode, const QString &fallback) const;
 
@@ -164,6 +169,8 @@ private:
     GWEN_GUI *gui;
     EncryptedConfigStore *configStore;
     QString lastError;
+    /* The last balance of each account, kept in the encrypted store, by account ID. */
+    QHash<uint, QVariantMap> storedBalances;
 };
 
 #endif // BANKINGTHREAD_H

@@ -352,6 +352,8 @@ the transactions page, which a depot has no use for.
   (`QSaveFile`), mode 0600. It mirrors the stock manager's semantics where
   AqBanking depends on them (a group that is read before it is written
   exists, empty).
+  The app keeps data of its own in the same file (`appData()`), in a group
+  `zasterbanker` that `listGroups()` hides from AqBanking.
 - **The key lives in Sailfish Secrets** (`KeyStore`): 256 random bits from
   libgcrypt, stored once in an app-owned collection (`ZasterBanker`, owner
   only, in the default encrypted storage) that unlocks with the device lock.
@@ -376,7 +378,19 @@ the transactions page, which a depot has no use for.
   - It is wiped at once when the bank rejects it, when a bank access is
     removed or all data is reset (all PINs), and when the app ends.
   - The PIN dialog says so.
-- **Balances, transactions and holdings are kept in memory only**; they are fetched on
+- **The last balances are stored, in the sealed store** (project owner's
+  decision, 2026-11-07: the overview should show the last known balances at
+  start). `BankingThread` keeps the last balance per account as app data
+  `balances` (`QDataStream`, own format version) and publishes it with the
+  accounts when AqBanking has started. Each fetch replaces the balances of the
+  accounts it brought; those of removed accounts are dropped, and "Delete all
+  data" removes them with the file. Not in Sailfish Secrets, although it was
+  considered: the store's key is there already, so the protection is the same,
+  without a second store, more requests to the Secrets daemon on every refresh,
+  or a second place to clean up. Every balance shows its date, the bank's or,
+  if the bank gave none, the day it was fetched, so a stored one does not pass
+  for current.
+- **Transactions and holdings are kept in memory only**; they are fetched on
   request. AqBanking dumps raw statements to `/tmp` if `AQHBCI_LOGBOOKED` or
   `AQHBCI_LOGNOTED` is set, so `main.cpp` unsets both.
 - **TLS:** Gwenhywfar verifies the chain against the system CA bundle and the
@@ -569,6 +583,14 @@ project unless the owner says so.
 - **2026-11-07, real bank, development device: the PIN is remembered.** On
   the project owner's Volksbank, actions after the first no longer asked for
   the PIN. Expiry after 5 minutes was not reported on separately.
+- 2026-11-07, emulator (5.1): the real `BankingThread`, `EncryptedConfigStore`
+  and `AccountModel` stored and restored balances as intended: sealed file with
+  nothing readable and mode 0600, values bit for bit, newer balances replacing
+  older ones, the others kept, the date fallback, AqBanking's groups untouched
+  and its listing without the app's group, a wrong key refused, pruning.
+- **2026-11-08, development device: stored balances show at start.** The
+  project owner found the last known balances on the overview after restarting
+  the app.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.

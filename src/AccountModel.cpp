@@ -19,6 +19,8 @@
 
 #include "AccountModel.h"
 
+#include <QDate>
+#include <QDateTime>
 #include <QMap>
 #include <QSet>
 
@@ -77,12 +79,27 @@ QVariant AccountModel::data(const QModelIndex &index, int role) const
     case HasBalanceRole: return balances.contains(accountId);
     case BalanceRole: return balances.value(accountId).value(QStringLiteral("balance"), 0.0);
     case BalanceCurrencyRole: return balances.value(accountId).value(QStringLiteral("currency"));
-    case BalanceDateRole: return balances.value(accountId).value(QStringLiteral("date"));
+    case BalanceDateRole: return balanceDate(accountId);
     case BankTotalsRole: return bankTotals(account.value(QStringLiteral("bankAccessId")).toUInt());
     case BankTotalCompleteRole: return bankTotalComplete(account.value(QStringLiteral("bankAccessId")).toUInt());
     case IsDepotRole: return account.value(QStringLiteral("isDepot"));
     }
     return QVariant();
+}
+
+/*
+ * The date the bank gave the balance. If it gave none, the day it was fetched,
+ * so that a stored balance never shows without a date.
+ */
+QVariant AccountModel::balanceDate(uint accountId) const
+{
+    const QVariantMap balance = balances.value(accountId);
+    const QDate date = balance.value(QStringLiteral("date")).toDate();
+    if (date.isValid()) {
+        return date;
+    }
+    const QDateTime fetched = balance.value(QStringLiteral("fetched")).toDateTime();
+    return fetched.isValid() ? QVariant(fetched.toLocalTime().date()) : QVariant();
 }
 
 QHash<int, QByteArray> AccountModel::roleNames() const
