@@ -104,6 +104,11 @@ Page {
                 enabled: !banking.busy
                 menu: ContextMenu {
                     MenuItem {
+                        text: qsTr("Refresh balances")
+                        enabled: !banking.busy
+                        onClicked: banking.refreshBankAccess(bankAccessId)
+                    }
+                    MenuItem {
                         text: qsTr("Remove this bank access")
                         enabled: !banking.busy
                         onClicked: {

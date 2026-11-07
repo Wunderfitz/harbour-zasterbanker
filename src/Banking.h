@@ -98,6 +98,8 @@ public:
     Q_INVOKABLE void addBankAccess(const QString &bankCode, const QString &bankName, const QString &serverUrl,
                                    const QString &userId, const QString &customerId);
     Q_INVOKABLE void refreshBalances();
+    /** The balances of one bank access only: no other bank is contacted, no other PIN asked for. */
+    Q_INVOKABLE void refreshBankAccess(int bankAccessId);
     Q_INVOKABLE void fetchTransactions(int accountId);
     Q_INVOKABLE void fetchHoldings(int accountId);
     Q_INVOKABLE void removeBankAccess(int bankAccessId);

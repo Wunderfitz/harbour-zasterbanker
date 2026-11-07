@@ -205,6 +205,14 @@ void BankingThread::fetchBalances()
     enqueue(command);
 }
 
+void BankingThread::fetchBalances(uint bankAccessId)
+{
+    Command command;
+    command.type = FetchBalances;
+    command.arguments.insert(QStringLiteral("bankAccessId"), bankAccessId);
+    enqueue(command);
+}
+
 void BankingThread::fetchTransactions(uint accountId)
 {
     Command command;
@@ -387,7 +395,7 @@ void BankingThread::run()
             executeAddBankAccess(command);
             break;
         case FetchBalances:
-            executeFetchBalances();
+            executeFetchBalances(command);
             break;
         case FetchTransactions:
             executeFetchTransactions(command);
@@ -506,9 +514,10 @@ void BankingThread::executeAddBankAccess(const Command &command)
 
     publishAccounts();
     // Within the same command, so the PIN entered for the setup is reused.
+    // Only the new bank access's: the others would ask for their PINs.
     // Balances that do not come are no reason to undo the setup.
     QString balanceError;
-    retrieveBalances(&balanceError);
+    retrieveBalances(&balanceError, true, uid);
     emit commandFinished(AddBankAccess, true, QString());
 }
 
@@ -549,7 +558,7 @@ bool BankingThread::chooseTanMethod(uint32_t userUid)
     return true;
 }
 
-void BankingThread::executeFetchBalances()
+void BankingThread::executeFetchBalances(const Command &command)
 {
     emit commandStarted(FetchBalances);
     if (!banking) {
@@ -557,11 +566,13 @@ void BankingThread::executeFetchBalances()
         return;
     }
     QString message;
-    const bool success = retrieveBalances(&message);
+    const QVariant bankAccessId = command.arguments.value(QStringLiteral("bankAccessId"));
+    const bool success = bankAccessId.isValid() ? retrieveBalances(&message, true, bankAccessId.toUInt())
+                                                : retrieveBalances(&message);
     emit commandFinished(FetchBalances, success, message);
 }
 
-bool BankingThread::retrieveBalances(QString *errorMessage)
+bool BankingThread::retrieveBalances(QString *errorMessage, bool oneBankAccess, uint32_t bankAccessId)
 {
     AB_ACCOUNT_SPEC_LIST *specs = nullptr;
     int rv = AB_Banking_GetAccountSpecList(banking, &specs);
@@ -572,12 +583,23 @@ bool BankingThread::retrieveBalances(QString *errorMessage)
 
     AB_TRANSACTION_LIST2 *jobs = AB_Transaction_List2_new();
     for (AB_ACCOUNT_SPEC *spec = AB_AccountSpec_List_First(specs); spec; spec = AB_AccountSpec_List_Next(spec)) {
+        if (oneBankAccess) {
+            uint32_t userUid = 0;
+            if (ZB_GetAccountUser(banking, AB_AccountSpec_GetUniqueId(spec), &userUid) < 0 || userUid != bankAccessId) {
+                continue;
+            }
+        }
         AB_TRANSACTION *job = AB_Transaction_new();
         AB_Transaction_SetCommand(job, AB_Transaction_CommandGetBalance);
         AB_Transaction_SetUniqueAccountId(job, AB_AccountSpec_GetUniqueId(spec));
         AB_Transaction_List2_PushBack(jobs, job);
     }
     AB_AccountSpec_List_free(specs);
+    if (AB_Transaction_List2_GetSize(jobs) == 0) {
+        AB_Transaction_List2_free(jobs);
+        *errorMessage = tr("There are no accounts.");
+        return false;
+    }
 
     AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
     reportProgress(tr("Retrieving balances..."));

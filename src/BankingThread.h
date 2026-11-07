@@ -92,6 +92,7 @@ public:
     void initialize(const QByteArray &key);
     void addBankAccess(const QVariantMap &bankAccess);
     void fetchBalances();
+    void fetchBalances(uint bankAccessId);
     void fetchTransactions(uint accountId);
     void fetchHoldings(uint accountId);
     void removeBankAccess(uint bankAccessId);
@@ -137,8 +138,9 @@ private:
     void enqueue(const Command &command);
     void executeInitialize(Command &command);
     void executeAddBankAccess(const Command &command);
-    void executeFetchBalances();
-    bool retrieveBalances(QString *errorMessage);
+    void executeFetchBalances(const Command &command);
+    /* Of all bank accesses, or only of the given one. */
+    bool retrieveBalances(QString *errorMessage, bool oneBankAccess = false, uint32_t bankAccessId = 0);
     void executeFetchTransactions(const Command &command);
     void executeFetchHoldings(const Command &command);
     void executeRemoveBankAccess(const Command &command);

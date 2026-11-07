@@ -247,6 +247,11 @@ last fails, the half-made user is deleted again: nothing is left behind.
   (project owner's decision, 2026-11-06, replacing a drawer tried the day before),
   opened by a long press on the name only. A short tap does nothing. The account
   below is a separate `ListItem`, where menus per account will go.
+- **Balances can be refreshed per bank access** (added 2026-11-08), from that
+  menu: the same `FetchBalances` command with a `bankAccessId`, which only
+  sends the jobs of that access's accounts, so no other bank is contacted and
+  no other PIN asked for. The pull-down menu and the cover still refresh all.
+  Setting up a bank access fetches only its own balances, for the same reason.
 - **The total per bank** (added 2026-11-05) is calculated by `AccountModel`,
   as the roles `bankTotals` and `bankTotalComplete`, so it follows every
   `setBalances()` by itself. List sections have no footer, so the last account
@@ -591,6 +596,10 @@ project unless the owner says so.
 - **2026-11-08, development device: stored balances show at start.** The
   project owner found the last known balances on the overview after restarting
   the app.
+- **2026-11-08, development device: refreshing one bank access works.** The
+  project owner refreshed a single bank access from its context menu, and it
+  worked smoothly. Setting up a bank access, which now fetches only its own
+  balances, was not tried again.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.

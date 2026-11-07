@@ -121,6 +121,13 @@ void Banking::refreshBalances()
     }
 }
 
+void Banking::refreshBankAccess(int bankAccessId)
+{
+    if (currentState == Ready && !busy() && accountModel.rowCount() > 0) {
+        thread.fetchBalances(static_cast<uint>(bankAccessId));
+    }
+}
+
 void Banking::fetchTransactions(int accountId)
 {
     if (currentState == Ready && !busy()) {
