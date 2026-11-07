@@ -46,6 +46,21 @@ Page {
 
     Component.onCompleted: banking.transactions.showAccount(accountId)
 
+    // A transaction as plain text, one line for each thing it says, for pasting
+    // into a note or a message.
+    function clipboardText(transaction) {
+        var lines = [
+            transaction.pending ? qsTr("Pending") : Format.date(transaction.date),
+            transaction.name,
+            transaction.hasAmount ? Format.amount(transaction.amount, transaction.currency ? transaction.currency
+                                                                                          : accountCurrency) : "",
+            transaction.purpose,
+            transaction.iban ? Format.iban(transaction.iban) : "",
+            transaction.kind
+        ]
+        return lines.filter(function(line) { return line && line.length > 0 }).join("\n")
+    }
+
     onStatusChanged: {
         if (status === PageStatus.Active && !requested) {
             requested = true
@@ -102,6 +117,16 @@ Page {
             contentHeight: showDetails && !expanded ? collapsedHeight
                                                     : Math.max(textColumn.height, amountColumn.height) + 2 * Theme.paddingMedium
             clip: heightAnimation.running
+
+            menu: ContextMenu {
+                MenuItem {
+                    text: qsTr("Copy to clipboard")
+                    onClicked: Clipboard.text = transactionsPage.clipboardText({
+                        pending: pending, date: date, name: name, hasAmount: hasAmount, amount: amount,
+                        currency: currency, purpose: purpose, iban: iban, kind: kind
+                    })
+                }
+            }
 
             onClicked: {
                 animateHeight = true

@@ -547,27 +547,33 @@
 <context>
     <name>TransactionsPage</name>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="84"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="99"/>
         <source>Refresh transactions</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="209"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="53"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="234"/>
         <source>Pending</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="218"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="123"/>
+        <source>Copy to clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/TransactionsPage.qml" line="243"/>
         <source>No transactions</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="219"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="244"/>
         <source>The bank reports none for the last 90 days.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/TransactionsPage.qml" line="224"/>
+        <location filename="../qml/pages/TransactionsPage.qml" line="249"/>
         <source>Transactions unavailable</source>
         <translation type="unfinished"></translation>
     </message>

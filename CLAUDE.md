@@ -308,6 +308,10 @@ last fails, the half-made user is deleted again: nothing is left behind.
 - A statement line the parser found no amount in stays in the list and shows
   "-": CAMT 052.001.08 reads the amount from `TxDtls`, and leaving such a line out
   would make the statement look complete when it is not.
+- **A transaction can be copied to the clipboard** (added 2026-11-08), from its
+  context menu: plain text, one line each for date (or "pending"), name, amount,
+  purpose, IBAN and kind, empty ones left out. Copying is the user's choice;
+  other apps can read the clipboard.
 - When a job fails without an error message, the error says which way: never
   sent ("the bank does not offer...") or answer not readable. AqBanking itself
   only tells its log, which is off.
@@ -600,6 +604,14 @@ project unless the owner says so.
   project owner refreshed a single bank access from its context menu, and it
   worked smoothly. Setting up a bank access, which now fetches only its own
   balances, was not tried again.
+- 2026-11-08, emulator (5.1), sample rows patched into the QML, real touch
+  input: a long press on a transaction opens "Copy to clipboard" in German and
+  pushes the rows below down; the clipboard then held the expected lines for a
+  booked transaction with markup in the name (kept literal), a pending one and
+  one without name or amount.
+- **2026-11-08, development device: copying a transaction works.** The project
+  owner copied transactions of their real account to the clipboard, and it
+  worked smoothly.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.
