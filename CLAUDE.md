@@ -561,6 +561,14 @@ project unless the owner says so.
   processing job", so the bank's answer is `HIWPD` version 6 as far as the symptoms
   go. That depot holds only shares and the bank asked for no TAN, so funds, bonds and
   a TAN during a depot fetch are still untested on a real bank.
+- 2026-11-07, emulator (5.1): the real `GwenGui` with a stand-in for the
+  banking thread kept and forgot PINs as intended, through a real 5-minute
+  wait: reuse within and across commands, an unconfirmed PIN forgotten after
+  its command, a rejected one at once, accesses kept apart, the time restarted
+  by use, expiry after 5 idle minutes.
+- **2026-11-07, real bank, development device: the PIN is remembered.** On
+  the project owner's Volksbank, actions after the first no longer asked for
+  the PIN. Expiry after 5 minutes was not reported on separately.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.
