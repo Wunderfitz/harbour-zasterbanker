@@ -101,11 +101,11 @@ Page {
             }
 
             AboutParagraph {
-                text: qsTr("What it keeps - your bank accesses, login names and accounts - is stored encrypted with AES-256. The key lives in Sailfish Secrets and is unlocked together with your device lock.")
+                text: qsTr("What it keeps - your bank accesses, login names, accounts and their last balances - is stored encrypted with AES-256. The key lives in Sailfish Secrets and is unlocked together with your device lock.")
             }
 
             AboutParagraph {
-                text: qsTr("Your PIN is never stored. It is asked for whenever the bank needs it and forgotten as soon as the operation is over. Balances are kept in memory only.")
+                text: qsTr("Your PIN is never stored. Once the bank has accepted it, it is kept in the app's memory for 5 minutes after your last action with that bank access, and forgotten when the app ends. Transactions and holdings are kept in memory only.")
             }
 
             SectionHeader { text: qsTr("Credits") }

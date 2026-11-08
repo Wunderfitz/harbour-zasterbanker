@@ -50,13 +50,13 @@
     </message>
     <message>
         <location filename="../qml/pages/AboutPage.qml" line="104"/>
-        <source>What it keeps - your bank accesses, login names and accounts - is stored encrypted with AES-256. The key lives in Sailfish Secrets and is unlocked together with your device lock.</source>
-        <translation>Was die App speichert - Ihre Bankzugänge, Anmeldenamen und Konten - wird mit AES-256 verschlüsselt. Der Schlüssel liegt in Sailfish Secrets und wird zusammen mit Ihrer Gerätesperre entsperrt.</translation>
+        <source>What it keeps - your bank accesses, login names, accounts and their last balances - is stored encrypted with AES-256. The key lives in Sailfish Secrets and is unlocked together with your device lock.</source>
+        <translation>Was die App speichert - Ihre Bankzugänge, Anmeldenamen, Konten und deren letzte Kontostände - wird mit AES-256 verschlüsselt. Der Schlüssel liegt in Sailfish Secrets und wird zusammen mit Ihrer Gerätesperre entsperrt.</translation>
     </message>
     <message>
         <location filename="../qml/pages/AboutPage.qml" line="108"/>
-        <source>Your PIN is never stored. It is asked for whenever the bank needs it and forgotten as soon as the operation is over. Balances are kept in memory only.</source>
-        <translation>Ihre PIN wird nie gespeichert. Sie wird abgefragt, wann immer die Bank sie braucht, und vergessen, sobald der Vorgang beendet ist. Kontostände werden nur im Arbeitsspeicher gehalten.</translation>
+        <source>Your PIN is never stored. Once the bank has accepted it, it is kept in the app&apos;s memory for 5 minutes after your last action with that bank access, and forgotten when the app ends. Transactions and holdings are kept in memory only.</source>
+        <translation>Ihre PIN wird nie gespeichert. Sobald die Bank sie akzeptiert hat, behält die App sie für 5 Minuten nach Ihrer letzten Aktion mit diesem Bankzugang im Arbeitsspeicher und vergisst sie, wenn sie beendet wird. Umsätze und Depotbestände werden nur im Arbeitsspeicher gehalten.</translation>
     </message>
     <message>
         <location filename="../qml/pages/AboutPage.qml" line="111"/>

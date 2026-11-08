@@ -1,6 +1,14 @@
-* Mon Nov 02 2026 Sebastian J. Wolf <sebastian@ygriega.de> 0.5.0-1
+* Sun Nov 08 2026 Sebastian J. Wolf <sebastian@ygriega.de> 0.5.0-1
 - Restart of Zaster Banker as a personal finance app, built on AqBanking
 - Bank selection with search as you type, setup of a FinTS PIN/TAN access
 - photoTAN and text TAN, choice of the TAN method
-- Accounts and their balances
+- Accounts and their balances, with a total per bank and per currency; the
+  cover shows the banks with their totals
+- The last known balances show at start, each with its date
+- Balances can be refreshed for all bank accesses or for one, from the
+  context menu of its name, which also removes a bank access
+- Transactions of the last 90 days, opened by tapping an account; a
+  transaction can be copied to the clipboard
+- Holdings of a depot, with their value and a total per currency
+- An accepted PIN is remembered in memory for 5 minutes per bank access
 - Everything stored is encrypted, the key is kept in Sailfish Secrets

@@ -612,6 +612,10 @@ project unless the owner says so.
 - **2026-11-08, development device: copying a transaction works.** The project
   owner copied transactions of their real account to the clipboard, and it
   worked smoothly.
+- **2026-11-08, real bank, development device: a second bank.** The project
+  owner set up their access at the GLS Gemeinschaftsbank eG, and it worked
+  smoothly. It is an Atruvia bank as well (`fints1.atruvia.de`, where the
+  Volksbank is on `fints2`), so this says nothing about other data centres.
 - Not verified yet: banks in other data centres (Sparkassen, private banks),
   the other TAN methods, removing a bank access, and the reset after an
   unreadable store.

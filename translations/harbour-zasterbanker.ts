@@ -50,12 +50,12 @@
     </message>
     <message>
         <location filename="../qml/pages/AboutPage.qml" line="104"/>
-        <source>What it keeps - your bank accesses, login names and accounts - is stored encrypted with AES-256. The key lives in Sailfish Secrets and is unlocked together with your device lock.</source>
+        <source>What it keeps - your bank accesses, login names, accounts and their last balances - is stored encrypted with AES-256. The key lives in Sailfish Secrets and is unlocked together with your device lock.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../qml/pages/AboutPage.qml" line="108"/>
-        <source>Your PIN is never stored. It is asked for whenever the bank needs it and forgotten as soon as the operation is over. Balances are kept in memory only.</source>
+        <source>Your PIN is never stored. Once the bank has accepted it, it is kept in the app&apos;s memory for 5 minutes after your last action with that bank access, and forgotten when the app ends. Transactions and holdings are kept in memory only.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
