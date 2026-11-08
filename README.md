@@ -65,10 +65,19 @@ been tried:
 
 Both are cooperative banks run by the same data centre, Atruvia. Sparkassen, private
 banks and other data centres have not been tried yet, nor any TAN
-method but photoTAN. A report on how the app fares with your bank is welcome - see
+method but photoTAN. A report on how the app fares with your bank is welcome, in the
+[Telegram group](https://t.me/+K3rZ4wtYd7NjMWMy) or as described in
 [Reporting a problem](#reporting-a-problem).
 
 ## Installing
+
+**Zaster Banker is in an early testing phase, for brave users.** It will be available
+from the Jolla Store, [OpenRepos](https://openrepos.net/) and as a
+[GitHub release](https://github.com/Wunderfitz/harbour-zasterbanker/releases) once it
+has proven to work with banks across several data centres - so far it has only been
+tried with banks run by one (see [Banks](#banks)). Until then, there are no published
+packages. If you would like to test it with your bank, or help with its development,
+join the [testing and development group on Telegram](https://t.me/+K3rZ4wtYd7NjMWMy).
 
 Zaster Banker needs **Sailfish OS 4.6** or newer. It passes Harbour's validation (`sfdk
 check`) without any exception. Pick the package that matches your phone:
@@ -135,7 +144,8 @@ Open an [issue](https://github.com/Wunderfitz/harbour-zasterbanker/issues) with 
 phone, its Sailfish OS version, your bank (or at least its kind and data centre), the
 TAN method and the error the app showed. `journalctl -f` as root while reproducing
 shows the app's own warnings; release builds keep AqBanking's own messages to
-themselves on purpose.
+themselves on purpose. Questions and first impressions are just as welcome in the
+[testing and development group on Telegram](https://t.me/+K3rZ4wtYd7NjMWMy).
 
 **Never post your PIN, a TAN, your login, account numbers, IBANs, balances or
 transactions**, and check screenshots for them before attaching one.

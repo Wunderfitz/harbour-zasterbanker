@@ -622,6 +622,12 @@ project unless the owner says so.
 
 ## Roadmap
 
+**Release** (project owner's decision, 2026-11-08): the app is in an early
+testing phase for brave users, with a testing and development group on Telegram
+(linked in the README). It will be published in the Jolla Store, on OpenRepos and
+as a GitHub release once it has proven to work with banks across several
+backends; so far only Atruvia banks have been tried.
+
 Iterations are decided one at a time by the project owner. Known so far:
 
 - All TAN methods FinTS supports: chipTAN optical (flicker code), chipTAN QR,
