@@ -55,6 +55,12 @@ void finishCommand();
 qint64 forgetExpiredPins();
 /** Wipes all remembered PINs. */
 void forgetPins();
+
+/**
+ * For the tests only: the clock the five minutes are measured with, in
+ * milliseconds. nullptr restores the real one, time since boot.
+ */
+void setClock(qint64 (*clock)());
 }
 
 #endif // GWENGUI_H

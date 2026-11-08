@@ -30,6 +30,7 @@ SOURCES += \
     src/InstituteSearch.cpp \
     src/InstituteSearchWorker.cpp \
     src/KeyStore.cpp \
+    src/StatementReader.cpp \
     src/TanImageProvider.cpp \
     src/TransactionModel.cpp \
     src/HoldingModel.cpp
@@ -45,6 +46,7 @@ HEADERS += \
     src/InstituteSearch.h \
     src/InstituteSearchWorker.h \
     src/KeyStore.h \
+    src/StatementReader.h \
     src/TanImageProvider.h \
     src/TransactionModel.h \
     src/HoldingModel.h

@@ -69,3 +69,6 @@ compile_commands.json
 /src/FinTsRegistration.h
 # Bank list database generated from the institute list
 /db/
+# Tests: Python's byte code, and the build folder of tests/run-engine-tests.sh
+__pycache__/
+/engine-tests/

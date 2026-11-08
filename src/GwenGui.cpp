@@ -72,12 +72,14 @@ void wipe(QByteArray &data)
  * five minutes with the screen off count as five minutes. QElapsedTimer and
  * CLOCK_MONOTONIC stand still during suspend.
  */
-qint64 now()
+qint64 bootTime()
 {
     struct timespec time;
     clock_gettime(CLOCK_BOOTTIME, &time);
     return static_cast<qint64>(time.tv_sec) * 1000 + time.tv_nsec / 1000000;
 }
+
+qint64 (*now)() = bootTime;
 
 void forgetPin(QMap<QByteArray, RememberedPin>::iterator pin)
 {
@@ -406,6 +408,11 @@ qint64 forgetExpiredPins()
         ++pin;
     }
     return next;
+}
+
+void setClock(qint64 (*clock)())
+{
+    now = clock ? clock : bootTime;
 }
 
 void forgetPins()

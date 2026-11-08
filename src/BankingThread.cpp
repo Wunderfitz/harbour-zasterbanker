@@ -23,6 +23,7 @@
 #include "EncryptedConfigStore.h"
 #include "FinTsRegistration.h"
 #include "GwenGui.h"
+#include "StatementReader.h"
 
 #include <QDataStream>
 #include <QDate>
@@ -36,14 +37,11 @@
 
 #include <aqbanking/banking_online.h>
 #include <aqbanking/types/account_spec.h>
-#include <aqbanking/types/balance.h>
 #include <aqbanking/types/imexporter_context.h>
-#include <aqbanking/types/security.h>
 #include <aqbanking/types/transaction.h>
 #include <gwenhywfar/dbio.h>
 #include <gwenhywfar/gwendate.h>
 #include <gwenhywfar/gwenhywfar.h>
-#include <gwenhywfar/gwentime.h>
 #include <gwenhywfar/logger.h>
 #include <gwenhywfar/plugin.h>
 
@@ -62,81 +60,6 @@ const qint32 BALANCES_VERSION = 1;
 // How far back transactions are asked for. Under PSD2, banks generally need no
 // TAN up to this age, and most ask for one or refuse anything older.
 const int TRANSACTION_DAYS = 90;
-
-QDate toQDate(const GWEN_DATE *date)
-{
-    return date ? QDate(GWEN_Date_GetYear(date), GWEN_Date_GetMonth(date), GWEN_Date_GetDay(date)) : QDate();
-}
-
-// The account's statement lines. Other transaction types in there would be
-// AqBanking's own bookkeeping, not movements on the account.
-QVariantList readTransactions(const AB_IMEXPORTER_ACCOUNTINFO *info)
-{
-    QVariantList result;
-    AB_TRANSACTION_LIST *list = AB_ImExporterAccountInfo_GetTransactionList(info);
-    if (!list) {
-        return result;
-    }
-    for (const AB_TRANSACTION *transaction = AB_Transaction_List_First(list); transaction;
-         transaction = AB_Transaction_List_Next(transaction)) {
-        const AB_TRANSACTION_TYPE type = AB_Transaction_GetType(transaction);
-        if (type != AB_Transaction_TypeStatement && type != AB_Transaction_TypeNotedStatement) {
-            continue;
-        }
-        const GWEN_DATE *booked = AB_Transaction_GetDate(transaction);
-        QVariantMap entry;
-        entry.insert(QStringLiteral("date"), toQDate(booked ? booked : AB_Transaction_GetValutaDate(transaction)));
-        // A line the parser found no amount in still gets shown, as "-": leaving
-        // it out would make the statement look complete when it is not.
-        const AB_VALUE *value = AB_Transaction_GetValue(transaction);
-        entry.insert(QStringLiteral("hasAmount"), value != nullptr);
-        entry.insert(QStringLiteral("amount"), value ? AB_Value_GetValueAsDouble(value) : 0.0);
-        entry.insert(QStringLiteral("currency"), value ? QString::fromUtf8(AB_Value_GetCurrency(value)) : QString());
-        entry.insert(QStringLiteral("name"), QString::fromUtf8(AB_Transaction_GetRemoteName(transaction)));
-        entry.insert(QStringLiteral("iban"), QString::fromUtf8(AB_Transaction_GetRemoteIban(transaction)));
-        entry.insert(QStringLiteral("purpose"), QString::fromUtf8(AB_Transaction_GetPurpose(transaction)));
-        entry.insert(QStringLiteral("kind"), QString::fromUtf8(AB_Transaction_GetTransactionText(transaction)));
-        entry.insert(QStringLiteral("pending"), type == AB_Transaction_TypeNotedStatement);
-        result.append(entry);
-    }
-    return result;
-}
-
-// What a depot holds. Only one depot is asked for at a time, so everything in
-// the context is this one's. The value is the bank's price times the units; a
-// position with either missing (bonds, for one: the parser reads neither their
-// nominal value nor their price in percent) has no value rather than a wrong one.
-QVariantList readHoldings(const AB_IMEXPORTER_CONTEXT *context)
-{
-    QVariantList result;
-    for (const AB_SECURITY *security = AB_ImExporterContext_GetFirstSecurity(context); security;
-         security = AB_Security_List_Next(security)) {
-        const AB_VALUE *units = AB_Security_GetUnits(security);
-        const AB_VALUE *price = AB_Security_GetUnitPriceValue(security);
-        QVariantMap entry;
-        entry.insert(QStringLiteral("name"), QString::fromUtf8(AB_Security_GetName(security)));
-        entry.insert(QStringLiteral("idKind"), QString::fromUtf8(AB_Security_GetNameSpace(security)));
-        entry.insert(QStringLiteral("identifier"), QString::fromUtf8(AB_Security_GetUniqueId(security)));
-        entry.insert(QStringLiteral("hasUnits"), units != nullptr);
-        entry.insert(QStringLiteral("units"), units ? AB_Value_GetValueAsDouble(units) : 0.0);
-        entry.insert(QStringLiteral("hasPrice"), price != nullptr);
-        entry.insert(QStringLiteral("price"), price ? AB_Value_GetValueAsDouble(price) : 0.0);
-        entry.insert(QStringLiteral("currency"), price ? QString::fromUtf8(AB_Value_GetCurrency(price)) : QString());
-        const GWEN_TIME *priceDate = AB_Security_GetUnitPriceDate(security);
-        if (priceDate) {
-            int day = 0;
-            int month = 0;
-            int year = 0;
-            // Gwenhywfar counts the months of a broken down date from 0.
-            GWEN_Time_GetBrokenDownDate(priceDate, &day, &month, &year);
-            entry.insert(QStringLiteral("priceDate"), QDate(year, month + 1, day));
-        }
-        entry.insert(QStringLiteral("hasValue"), units != nullptr && price != nullptr);
-        entry.insert(QStringLiteral("value"), units && price ? AB_Value_GetValueAsDouble(units) * AB_Value_GetValueAsDouble(price) : 0.0);
-        result.append(entry);
-    }
-    return result;
-}
 
 // AqBanking's name for this application; it keys the app's own settings group.
 const char APP_NAME[] = "ZasterBanker";
@@ -606,37 +529,7 @@ bool BankingThread::retrieveBalances(QString *errorMessage, bool oneBankAccess, 
     rv = AB_Banking_SendCommands(banking, jobs, context);
     AB_Transaction_List2_freeAll(jobs);
 
-    const QDateTime fetched = QDateTime::currentDateTimeUtc();
-    QVariantList balances;
-    for (AB_IMEXPORTER_ACCOUNTINFO *info = AB_ImExporterContext_GetFirstAccountInfo(context); info;
-         info = AB_ImExporterAccountInfo_List_Next(info)) {
-        AB_BALANCE_LIST *list = AB_ImExporterAccountInfo_GetBalanceList(info);
-        if (!list) {
-            continue;
-        }
-        // The booked balance is what the bank statement says; the others
-        // (noted, disposable, ...) are only a fallback.
-        const AB_BALANCE *chosen = nullptr;
-        for (const AB_BALANCE *balance = AB_Balance_List_First(list); balance; balance = AB_Balance_List_Next(balance)) {
-            if (!chosen || AB_Balance_GetType(balance) == AB_Balance_TypeBooked) {
-                chosen = balance;
-            }
-        }
-        const AB_VALUE *value = chosen ? AB_Balance_GetValue(chosen) : nullptr;
-        if (!value) {
-            continue;
-        }
-        QVariantMap entry;
-        entry.insert(QStringLiteral("accountId"), AB_ImExporterAccountInfo_GetAccountId(info));
-        entry.insert(QStringLiteral("balance"), AB_Value_GetValueAsDouble(value));
-        entry.insert(QStringLiteral("currency"), QString::fromUtf8(AB_Value_GetCurrency(value)));
-        entry.insert(QStringLiteral("fetched"), fetched);
-        const GWEN_DATE *date = AB_Balance_GetDate(chosen);
-        if (date) {
-            entry.insert(QStringLiteral("date"), QDate(GWEN_Date_GetYear(date), GWEN_Date_GetMonth(date), GWEN_Date_GetDay(date)));
-        }
-        balances.append(entry);
-    }
+    const QVariantList balances = StatementReader::balances(context, QDateTime::currentDateTimeUtc());
     AB_ImExporterContext_free(context);
 
     if (!balances.isEmpty()) {
@@ -698,7 +591,7 @@ void BankingThread::executeFetchTransactions(const Command &command)
          info = AB_ImExporterAccountInfo_List_Next(info)) {
         if (AB_ImExporterAccountInfo_GetAccountId(info) == accountId) {
             hasAnswer = true;
-            transactions += readTransactions(info);
+            transactions += StatementReader::transactions(info);
         }
     }
     // A bank that rejects the request does not fail the job or the call, it only
@@ -747,7 +640,7 @@ void BankingThread::executeFetchHoldings(const Command &command)
     const AB_TRANSACTION_STATUS status = AB_Transaction_GetStatus(job);
     AB_Transaction_List2_freeAll(jobs);
 
-    const QVariantList holdings = readHoldings(context);
+    const QVariantList holdings = StatementReader::holdings(context);
     AB_ImExporterContext_free(context);
 
     // Unlike with transactions, the context has no entry for the account to prove

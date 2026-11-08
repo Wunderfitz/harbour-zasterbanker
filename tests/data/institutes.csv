@@ -1,0 +1,11 @@
+Nr.;BLZ;BIC;Institut;Ort;Feld 5;Feld 6;Feld 7;Feld 8;Feld 9;Feld 10;Feld 11;Feld 12;Feld 13;Feld 14;Feld 15;Feld 16;Feld 17;Feld 18;Feld 19;Feld 20;Feld 21;Feld 22;Feld 23;PIN/TAN-Zugang URL;Version;Datum letzte Änderung
+1;10010010;TESTDEFF100;Volksbank Musterstadt eG;München;;;;;;;;;;;;;;;;;;;;https://fints.example.test/volksbank;FinTS V3.0;01.10.2026
+2;10010010;TESTDEFF100;Volksbank Musterstadt eG;München;;;;;;;;;;;;;;;;;;;;https://fints.example.test/volksbank;FinTS V3.0;01.10.2026
+3;20020020;TESTDEFF200;Gemeinschaftsbank für Beispiele eG;Weißenburg;;;;;;;;;;;;;;;;;;;;https://fints.example.test/gemeinschaft;FinTS V3.0;01.10.2026
+4;30030030;#NV;Sparkasse Ohnename;#NV;;;;;;;;;;;;;;;;;;;;https://fints.example.test/sparkasse;FinTS V3.0;01.10.2026
+5;40040040;TESTDEFF400;Bank_100%;Teststadt;;;;;;;;;;;;;;;;;;;;https://fints.example.test/prozent;FinTS V3.0;01.10.2026
+6;50050050;TESTDEFF500;BankX100;Teststadt;;;;;;;;;;;;;;;;;;;;https://fints.example.test/x;FinTS V3.0;01.10.2026
+7;60060060;TESTDEFF600;Bank ohne PIN/TAN;Teststadt;;;;;;;;;;;;;;;;;;;;;;01.10.2026
+8;70070070;TESTDEFF700;Bank ohne TLS;Teststadt;;;;;;;;;;;;;;;;;;;;http://fints.example.test/klartext;FinTS V3.0;01.10.2026
+9;80080080;TESTDEFF800;Bank mit HBCI 2.2;Teststadt;;;;;;;;;;;;;;;;;;;;https://fints.example.test/alt;HBCI 2.2;01.10.2026
+10;9009009;TESTDEFF900;Bank mit kurzer BLZ;Teststadt;;;;;;;;;;;;;;;;;;;;https://fints.example.test/kurz;FinTS V3.0;01.10.2026

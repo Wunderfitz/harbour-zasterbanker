@@ -118,127 +118,127 @@
 <context>
     <name>BankingThread</name>
     <message>
-        <location filename="../src/BankingThread.cpp" line="443"/>
+        <location filename="../src/BankingThread.cpp" line="366"/>
         <source>Your stored data cannot be decrypted.</source>
         <translation>Ihre gespeicherten Daten können nicht entschlüsselt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="458"/>
+        <location filename="../src/BankingThread.cpp" line="381"/>
         <source>The banking library could not be started (%1).</source>
         <translation>Die Banking-Bibliothek konnte nicht gestartet werden (%1).</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="471"/>
-        <location filename="../src/BankingThread.cpp" line="565"/>
-        <location filename="../src/BankingThread.cpp" line="657"/>
-        <location filename="../src/BankingThread.cpp" line="731"/>
-        <location filename="../src/BankingThread.cpp" line="777"/>
+        <location filename="../src/BankingThread.cpp" line="394"/>
+        <location filename="../src/BankingThread.cpp" line="488"/>
+        <location filename="../src/BankingThread.cpp" line="550"/>
+        <location filename="../src/BankingThread.cpp" line="624"/>
+        <location filename="../src/BankingThread.cpp" line="670"/>
         <source>Banking is not available.</source>
         <translation>Das Banking ist nicht verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="485"/>
+        <location filename="../src/BankingThread.cpp" line="408"/>
         <source>The bank access could not be created.</source>
         <translation>Der Bankzugang konnte nicht angelegt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="490"/>
+        <location filename="../src/BankingThread.cpp" line="413"/>
         <source>Connecting to the bank...</source>
         <translation>Verbinde mit der Bank...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="493"/>
+        <location filename="../src/BankingThread.cpp" line="416"/>
         <source>The bank did not accept the connection.</source>
         <translation>Die Bank hat die Verbindung nicht angenommen.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="506"/>
+        <location filename="../src/BankingThread.cpp" line="429"/>
         <source>Retrieving your accounts...</source>
         <translation>Rufe Ihre Konten ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="509"/>
+        <location filename="../src/BankingThread.cpp" line="432"/>
         <source>The bank did not list your accounts.</source>
         <translation>Die Bank hat Ihre Konten nicht übermittelt.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="546"/>
+        <location filename="../src/BankingThread.cpp" line="469"/>
         <source>TAN method</source>
         <translation>TAN-Verfahren</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="547"/>
+        <location filename="../src/BankingThread.cpp" line="470"/>
         <source>Your bank offers several ways to confirm with a TAN. Which one do you use?</source>
         <translation>Ihre Bank bietet mehrere Verfahren an, um mit einer TAN zu bestätigen. Welches nutzen Sie?</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="580"/>
-        <location filename="../src/BankingThread.cpp" line="600"/>
+        <location filename="../src/BankingThread.cpp" line="503"/>
+        <location filename="../src/BankingThread.cpp" line="523"/>
         <source>There are no accounts.</source>
         <translation>Es gibt keine Konten.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="605"/>
+        <location filename="../src/BankingThread.cpp" line="528"/>
         <source>Retrieving balances...</source>
         <translation>Rufe Kontostände ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="667"/>
+        <location filename="../src/BankingThread.cpp" line="560"/>
         <source>Retrieving transactions...</source>
         <translation>Rufe Umsätze ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="721"/>
+        <location filename="../src/BankingThread.cpp" line="614"/>
         <source>The transactions could not be retrieved.</source>
         <translation>Die Umsätze konnten nicht abgerufen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="718"/>
+        <location filename="../src/BankingThread.cpp" line="611"/>
         <source>The bank&apos;s answer could not be read.</source>
         <translation>Die Antwort der Bank konnte nicht gelesen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="719"/>
+        <location filename="../src/BankingThread.cpp" line="612"/>
         <source>The bank does not offer transactions for this account.</source>
         <translation>Die Bank bietet für dieses Konto keine Umsätze an.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="648"/>
+        <location filename="../src/BankingThread.cpp" line="541"/>
         <source>The bank sent no balances.</source>
         <translation>Die Bank hat keine Kontostände übermittelt.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="736"/>
+        <location filename="../src/BankingThread.cpp" line="629"/>
         <source>Retrieving holdings...</source>
         <translation>Rufe Depotbestand ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="767"/>
+        <location filename="../src/BankingThread.cpp" line="660"/>
         <source>The bank does not offer the holdings of this account.</source>
         <translation>Die Bank bietet den Bestand dieses Depots nicht an.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="768"/>
+        <location filename="../src/BankingThread.cpp" line="661"/>
         <source>The holdings could not be retrieved.</source>
         <translation>Der Depotbestand konnte nicht abgerufen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="782"/>
+        <location filename="../src/BankingThread.cpp" line="675"/>
         <source>The bank access could not be removed.</source>
         <translation>Der Bankzugang konnte nicht entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="792"/>
+        <location filename="../src/BankingThread.cpp" line="685"/>
         <source>The stored data could not be removed.</source>
         <translation>Die gespeicherten Daten konnten nicht entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="935"/>
+        <location filename="../src/BankingThread.cpp" line="828"/>
         <source>Cancelled.</source>
         <translation>Abgebrochen.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="940"/>
+        <location filename="../src/BankingThread.cpp" line="833"/>
         <source>%1 (Error %2)</source>
         <translation>%1 (Fehler %2)</translation>
     </message>
@@ -325,22 +325,22 @@
 <context>
     <name>GwenGui</name>
     <message>
-        <location filename="../src/GwenGui.cpp" line="182"/>
+        <location filename="../src/GwenGui.cpp" line="184"/>
         <source>The TAN has an invalid length.</source>
         <translation>Die TAN hat eine ungültige Länge.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="183"/>
+        <location filename="../src/GwenGui.cpp" line="185"/>
         <source>The PIN has an invalid length.</source>
         <translation>Die PIN hat eine ungültige Länge.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="232"/>
+        <location filename="../src/GwenGui.cpp" line="234"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="319"/>
+        <location filename="../src/GwenGui.cpp" line="321"/>
         <source>The bank&apos;s server could not prove its identity, the connection was refused. %1</source>
         <translation>Der Server der Bank konnte seine Identität nicht nachweisen, die Verbindung wurde abgelehnt. %1</translation>
     </message>
