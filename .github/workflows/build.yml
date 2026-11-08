@@ -1,0 +1,392 @@
+# Builds the RPMs on every push to master - a nightly, kept as the run's
+# artifacts for 30 days - and for every tag on master a GitHub release of the
+# same name, the tag being the version. All tests run first; if any fails,
+# nothing is built, nightly or release. Every RPM has to pass Harbour's
+# validation as well.
+#
+# Four packages: Sailfish OS 4.6 for aarch64 and armv7hl, 5.1 for aarch64 and
+# i486 (the 5.1 validator rejects binaries built against 4.6, see CLAUDE.md).
+#
+# The seven third-party libraries take about half an hour per architecture to
+# build, so they are built once and kept in GitHub's Actions cache, keyed by
+# everything that decides the result. A run finding them missing builds them
+# itself; a weekly run keeps the cache from expiring (GitHub drops entries
+# unused for a week) and does nothing else.
+#
+# master and tags only, on purpose. Pull requests would build code from
+# outside the repository, and other branches are work in progress: neither
+# should quietly produce something that looks like a nightly or a release, and
+# neither must get near the secrets. Nothing can be started by hand either, as
+# that would run on any branch.
+#
+# Secrets, used by the build job only, never by the jobs that run third-party
+# build scripts or the tests:
+#   FINTS_REGISTRATION_NUMBER    the FinTS product registration number
+#   FINTS_DATABASE_ACCESS_TOKEN  read access to the private repository
+#                                Wunderfitz/fints-institutes, which holds the
+#                                bank list (licensed, never in this repository)
+
+name: Build RPMs
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - '*'
+  schedule:
+    - cron: '23 3 * * 1'
+
+permissions:
+  contents: read
+
+# A newer push to master supersedes a nightly still building; a release is
+# always seen through.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref == 'refs/heads/master' && github.event_name == 'push' }}
+
+env:
+  # The build engines, pinned by digest: they run privileged.
+  SDK_IMAGE_4_6: coderus/sailfishos-platform-sdk:4.6.0.13@sha256:c8ed7f01a413e816cdd187fd5cec9ae55d12d1c03adfe26b898acc13acd5e620
+  SDK_IMAGE_5_1: coderus/sailfishos-platform-sdk:5.1.0.11@sha256:31ba115546972af3630f4690acc204a4e09701358ae39be1883ca70e0eadda86
+
+jobs:
+  version:
+    name: Version
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release: ${{ steps.version.outputs.release }}
+      prerelease: ${{ steps.version.outputs.prerelease }}
+
+    steps:
+      # The whole history, to tell whether a tag's commit is on master.
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # A nightly keeps the spec's Version and has to lose to the release it
+      # precedes: RPM compares Release field by field, so "0.<when>.git<commit>"
+      # sorts below a release's "1". A tag is the version itself, and must be a
+      # semantic version - a leading "v" is let pass and left out - on a commit
+      # that is on master; anything else stops here, before anything is built.
+      - name: Work out the version
+        id: version
+        run: |
+          set -euo pipefail
+          spec=rpm/harbour-zasterbanker.spec
+          spec_version="$(sed -n 's/^Version:[[:space:]]*//p' "$spec")"
+
+          if [[ "$GITHUB_REF" != refs/tags/* ]]; then
+              version="$spec_version"
+              release="0.$(date -u +%Y%m%d%H%M).git$(git rev-parse --short HEAD)"
+              prerelease=false
+          else
+              tag="$GITHUB_REF_NAME"
+              semver='^v?(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-([0-9A-Za-z.-]+))?(\+([0-9A-Za-z.-]+))?$'
+              if ! [[ "$tag" =~ $semver ]]; then
+                  echo "::error::The tag $tag is not a semantic version (MAJOR.MINOR.PATCH)."
+                  exit 1
+              fi
+              core="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+              pre="${BASH_REMATCH[5]}"
+              build="${BASH_REMATCH[7]}"
+              if ! git merge-base --is-ancestor "$(git rev-parse "$GITHUB_REF^{commit}")" origin/master; then
+                  echo "::error::The tag $tag is not on master; no release is made from it."
+                  exit 1
+              fi
+
+              # RPM allows no hyphen in Version. A tilde sorts before the
+              # version without it, as a semantic pre-release does: 1.0.0~rc.1
+              # comes before 1.0.0. Hyphens within are made underscores.
+              version="$core"
+              [ -z "$pre" ] || version="$version~${pre//-/_}"
+              [ -z "$build" ] || version="$version+${build//-/_}"
+              release=1
+              prerelease="$([ -n "$pre" ] && echo true || echo false)"
+
+              # The tag decides the RPM's version; the rest of the sources
+              # should agree with it, or the app names another one. The about
+              # page and the version sent to the bank leave out a ".0" at the
+              # end, and the latter has room for five characters only.
+              short="${core%.0}"
+              about="$(sed -n 's/.*qsTr("Zaster Banker %1").arg("\([^"]*\)").*/\1/p' qml/pages/AboutPage.qml)"
+              fints="$(sed -n 's/.*FINTS_APP_VERSION\[\] = "\([^"]*\)".*/\1/p' src/BankingThread.cpp)"
+              changes="$(sed -n '1s/.* \([^ ]*\)-[^ -]*$/\1/p' rpm/harbour-zasterbanker.changes)"
+              [ "$spec_version" = "$version" ] || echo "::warning::The spec's Version is $spec_version, the tag says $version."
+              [ "$about" = "$short" ] || echo "::warning::The about page names version $about, the tag says $short."
+              [ "$fints" = "$short" ] || echo "::warning::FINTS_APP_VERSION is $fints, the tag says $short."
+              [ "${#short}" -le 5 ] || echo "::warning::$short is too long for FINTS_APP_VERSION (five characters at most)."
+              [ "$changes" = "$version" ] || echo "::warning::The changelog's latest entry is for $changes, the tag says $version."
+          fi
+
+          echo "Version $version, release $release, prerelease $prerelease"
+          {
+              echo "version=$version"
+              echo "release=$release"
+              echo "prerelease=$prerelease"
+          } >> "$GITHUB_OUTPUT"
+
+  # The third-party libraries, from the cache or built afresh (an hour or so
+  # per architecture). All targets use the libraries built against 4.6.0.13,
+  # as local builds do. The key holds everything that decides the result:
+  # build script, patches, the catalogue compiler and the build engine.
+  deps:
+    name: Libraries ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      matrix:
+        arch: [aarch64, armv7hl, i486]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Restore the libraries
+        id: cache
+        uses: actions/cache/restore@v6
+        with:
+          path: 3rdparty/install/${{ matrix.arch }}
+          key: deps-${{ matrix.arch }}-${{ env.SDK_IMAGE_4_6 }}-${{ hashFiles('3rdparty/build-deps.sh', '3rdparty/patches/**', 'tools/po2mo.py') }}
+
+      # In a copy of the sources inside the build engine, as the build action
+      # does it. Build-requires first, for pkg-config and the toolchain the
+      # app's spec pulls in. The build tools in bin/ are only needed while
+      # building and stay out of the cache.
+      - name: Build the libraries
+        if: steps.cache.outputs.cache-hit != 'true'
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          chmod a+w out
+          docker run --rm -i --privileged -e ARCH \
+              -v "$GITHUB_WORKSPACE:/workspace:ro" -v "$GITHUB_WORKSPACE/out:/out" \
+              "$SDK_IMAGE_4_6" bash -s <<'OUTER'
+          set -euo pipefail
+          mkdir -p zasterbanker
+          cp -r /workspace/. zasterbanker/
+          cd zasterbanker
+          target="SailfishOS-4.6.0.13-$ARCH"
+          mb2 -t "$target" build-init
+          mb2 -t "$target" build-requires reset
+          if ! mb2 -t "$target" build-shell bash 3rdparty/build-deps.sh; then
+              tail -n 60 3rdparty/build/"$ARCH"/*.log || true
+              exit 1
+          fi
+          rm -r "3rdparty/install/$ARCH/bin"
+          cp -r "3rdparty/install/$ARCH" /out/
+          OUTER
+          sudo chown -R "$(id -u):$(id -g)" out
+          mkdir -p 3rdparty/install
+          mv "out/$ARCH" 3rdparty/install/
+          du -sh "3rdparty/install/$ARCH"
+
+      - name: Keep the libraries
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: 3rdparty/install/${{ matrix.arch }}
+          key: ${{ steps.cache.outputs.cache-primary-key }}
+
+  # Every test suite, as CLAUDE.md runs them locally: the tools' tests with the
+  # runner's Python, then the ones that need the libraries and Qt 5.6 in the
+  # build engine, against the i486 target, whose binaries run natively.
+  test:
+    name: Tests
+    if: github.event_name == 'push'
+    needs: deps
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Run the tools' tests
+        run: python3 -m unittest discover -s tests/host -v
+
+      - name: Restore the libraries
+        uses: actions/cache/restore@v6
+        with:
+          path: 3rdparty/install/i486
+          key: deps-i486-${{ env.SDK_IMAGE_4_6 }}-${{ hashFiles('3rdparty/build-deps.sh', '3rdparty/patches/**', 'tools/po2mo.py') }}
+          fail-on-cache-miss: true
+
+      - name: Run the tests in the build engine
+        run: |
+          set -euo pipefail
+          docker run --rm -i --privileged -v "$GITHUB_WORKSPACE:/workspace:ro" \
+              "$SDK_IMAGE_4_6" bash -s <<'OUTER'
+          set -euo pipefail
+          mkdir -p zasterbanker
+          cp -r /workspace/. zasterbanker/
+          cd zasterbanker
+          target=SailfishOS-4.6.0.13-i486
+          mb2 -t "$target" build-init
+          mb2 -t "$target" build-requires reset
+          mb2 -t "$target" build-shell bash tests/run-engine-tests.sh
+          OUTER
+
+  build:
+    name: Build ${{ matrix.sfos }} ${{ matrix.arch }}
+    needs: [version, deps, test]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { sfos: '4.6', release: 4.6.0.13, arch: aarch64 }
+          - { sfos: '4.6', release: 4.6.0.13, arch: armv7hl }
+          - { sfos: '5.1', release: 5.1.0.11, arch: aarch64 }
+          - { sfos: '5.1', release: 5.1.0.11, arch: i486 }
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Restore the libraries
+        uses: actions/cache/restore@v6
+        with:
+          path: 3rdparty/install/${{ matrix.arch }}
+          key: deps-${{ matrix.arch }}-${{ env.SDK_IMAGE_4_6 }}-${{ hashFiles('3rdparty/build-deps.sh', '3rdparty/patches/**', 'tools/po2mo.py') }}
+          fail-on-cache-miss: true
+
+      # The bank list, from the private repository. The token is not kept in
+      # the checkout, and the checkout is gone before the build engine starts.
+      - name: Get the bank list
+        uses: actions/checkout@v7
+        with:
+          repository: Wunderfitz/fints-institutes
+          token: ${{ secrets.FINTS_DATABASE_ACCESS_TOKEN }}
+          path: .fints-institutes
+          persist-credentials: false
+
+      - name: Put the bank list in place
+        run: |
+          set -eu
+          mkdir -p db
+          install -m 644 .fints-institutes/fints_institutes.db db/fints_institutes.db
+          rm -rf .fints-institutes
+          ls -l db
+
+      # Never printed; GitHub masks it in the log as well.
+      - name: Put the registration number in place
+        env:
+          NUMBER: ${{ secrets.FINTS_REGISTRATION_NUMBER }}
+        run: |
+          set -eu
+          if [ -z "$NUMBER" ]; then
+              echo "::error::The secret FINTS_REGISTRATION_NUMBER is not set."
+              exit 1
+          fi
+          case "$NUMBER" in
+              *[!0-9A-Za-z]*)
+                  echo "::error::FINTS_REGISTRATION_NUMBER holds something other than letters and digits."
+                  exit 1
+                  ;;
+          esac
+          sed "s/\"PLACEHOLDER\"/\"$NUMBER\"/" src/FinTsRegistration.h.example > src/FinTsRegistration.h
+          if grep -q PLACEHOLDER src/FinTsRegistration.h; then
+              echo "::error::src/FinTsRegistration.h.example no longer has the expected placeholder."
+              exit 1
+          fi
+
+      - name: Set the version
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          RELEASE: ${{ needs.version.outputs.release }}
+        run: |
+          set -eu
+          sed -i -e "s/^Version:.*/Version:    ${VERSION}/" \
+                 -e "s/^Release:.*/Release:    ${RELEASE}/" rpm/harbour-zasterbanker.spec
+          grep -E '^(Version|Release):' rpm/harbour-zasterbanker.spec
+
+      # In a copy of the sources inside the build engine, as the build action
+      # does it, followed by Harbour's validation, as "sfdk check" runs it. The
+      # copy holds no .git: mb2 takes the version from the spec as set above.
+      - name: Build and validate
+        env:
+          RELEASE_SDK: ${{ matrix.release }}
+          ARCH: ${{ matrix.arch }}
+          IMAGE: ${{ matrix.sfos == '4.6' && env.SDK_IMAGE_4_6 || env.SDK_IMAGE_5_1 }}
+        run: |
+          set -euo pipefail
+          mkdir -p out
+          chmod a+w out
+          docker run --rm -i --privileged -e RELEASE_SDK -e ARCH \
+              -v "$GITHUB_WORKSPACE:/workspace:ro" -v "$GITHUB_WORKSPACE/out:/out" \
+              "$IMAGE" bash -s <<'OUTER'
+          set -euo pipefail
+          mkdir -p zasterbanker
+          cp -r /workspace/. zasterbanker/
+          cd zasterbanker
+          target="SailfishOS-$RELEASE_SDK-$ARCH"
+          mb2 -t "$target" build
+          mb2 -t "$target" check RPMS/*.rpm
+          cp RPMS/*.rpm /out/
+          OUTER
+
+      # The same package name for 4.6 and 5.1 on aarch64, so the target goes
+      # into the file name: harbour-zasterbanker-0.5.0-1.sfos5.1.aarch64.rpm.
+      - name: Name the RPMs after their target
+        env:
+          SFOS: ${{ matrix.sfos }}
+        run: |
+          set -eu
+          mkdir -p RPMS
+          for rpm in out/*.rpm; do
+              base="$(basename "$rpm" .rpm)"
+              cp "$rpm" "RPMS/${base%.*}.sfos${SFOS}.${base##*.}.rpm"
+          done
+          ls -l RPMS
+
+      - name: Upload the RPMs
+        uses: actions/upload-artifact@v7
+        with:
+          name: harbour-zasterbanker-${{ needs.version.outputs.version }}-${{ needs.version.outputs.release }}.sfos${{ matrix.sfos }}.${{ matrix.arch }}
+          path: RPMS/*.rpm
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Release
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: [version, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download the RPMs
+        uses: actions/download-artifact@v8
+        with:
+          pattern: harbour-zasterbanker-*
+          path: RPMS
+          merge-multiple: true
+
+      # The notes are the changelog's latest entry, if it is this version's;
+      # a run made again replaces the RPMs of a release already there.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          ls -l RPMS
+          if head -n 1 rpm/harbour-zasterbanker.changes | grep -q " ${VERSION}-[^ -]*$"; then
+              awk 'NR > 1 && /^\* / { exit } NR > 1' rpm/harbour-zasterbanker.changes > notes.md
+          else
+              echo "Zaster Banker $tag." > notes.md
+          fi
+          if gh release view "$tag" > /dev/null 2>&1; then
+              gh release upload "$tag" RPMS/*.rpm --clobber
+          else
+              flags=()
+              [ "$PRERELEASE" != true ] || flags+=(--prerelease)
+              gh release create "$tag" RPMS/*.rpm --verify-tag --title "$tag" \
+                  --notes-file notes.md "${flags[@]}"
+          fi

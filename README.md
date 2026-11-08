@@ -398,25 +398,50 @@ home folder, so the build directories must be below it, never under `/tmp`. Buil
 target the oldest supported release, 4.6.0.13 (Qt 5.6.3), and 5.1.0.11 for the 5.1
 packages (see [Installing](#installing)).
 
+### Tests
+
+The tests of the tools need nothing but Python 3:
+
+```sh
+python3 -m unittest discover -s tests/host -v
+```
+
+The others link the app's own code with AqBanking, Gwenhywfar and Qt as the app has
+them: the encrypted store, the PIN memory and the filter on the bank's texts, sample
+statements in MT940, MT942, CAMT and MT535 read by AqBanking's real importers, the
+models and the bank search. They run in the build engine, from the i486 build
+directory, once the libraries are built for it:
+
+```sh
+cd ../build-harbour-zasterbanker-4.6.0.13-i486
+sfdk -c target=SailfishOS-4.6.0.13-i486 build-shell ../harbour-zasterbanker/tests/run-engine-tests.sh
+```
+
+Every push to master runs all of them on GitHub, builds the four packages, and checks
+each with Harbour's validation; a tag on master makes a release. The libraries are
+built there once and kept in GitHub's cache.
+
 [CLAUDE.md](CLAUDE.md) has every design decision with the reason behind it, the build
 engine's quirks, how to run the app in the emulator, and what has been verified where.
 
 ## Layout
 
 ```
-harbour-zasterbanker.pro   one qmake project; includes 3rdparty/install/<arch>/deps.pri
+harbour-zasterbanker.pro   one qmake project; includes 3rdparty/aqbanking.pri
 src/                       C++: banking thread, GUI layer, encrypted store, key store,
-                           the shim to aqhbci, models, bank search
+                           the shim to aqhbci, statement reader, models, bank search
 qml/                       the pages, the dialogs, the cover and the components
-3rdparty/                  build-deps.sh and the patches; downloads, builds and installs
-                           of the libraries (git-ignored)
+3rdparty/                  build-deps.sh, the patches and aqbanking.pri; downloads,
+                           builds and installs of the libraries (git-ignored)
 tools/                     import-banklist.py (bank list), po2mo.py (translations)
 db/                        fints_institutes.db, generated (git-ignored)
 images/                    the cover artwork
 icons/                     the launcher icon
 translations/              the German catalogue
-tests/                     search-focus.sh, a UI check in the emulator
+tests/                     host/ (the tools), engine/ (the rest, in the build engine),
+                           data/ (a made-up bank list), search-focus.sh (emulator)
 rpm/                       package spec and changelog
+.github/workflows/         the nightly and release builds
 CLAUDE.md                  how the app is put together and why
 ```
 

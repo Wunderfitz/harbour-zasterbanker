@@ -131,9 +131,20 @@ archives, and the app links them in.
   (logs per library there) and installs into `3rdparty/install/<arch>/`, all
   git-ignored. Finished libraries are skipped on the next run (stamp files in
   the install dir); delete a stamp to rebuild one. The script also writes
-  `3rdparty/install/<arch>/deps.pri`, which the `.pro` includes: compiler and
-  linker flags, the path of AqBanking's `hbci.xml`, and AqBanking's source
-  tree for the shim's internal headers.
+  `3rdparty/install/<arch>/deps.pri`: compiler and linker flags, the path of
+  AqBanking's `hbci.xml` and of the translations, and of the shim's internal
+  headers, which it copies from AqBanking's source tree to
+  `3rdparty/install/<arch>/aqbanking-internal/`. **Every path in it is
+  relative to the file itself** (`$$PWD`), so the install folder is all a
+  build needs: it can be moved, cached and restored without the 800 MB build
+  folder, which is what the CI does (decided 2026-11-08).
+- **`3rdparty/aqbanking.pri`** is what the app and the tests take of all this:
+  it includes `deps.pri`, puts the `swift` parser in front of the libraries,
+  adds the shim's include paths and lists AqBanking's data files the package
+  installs below `/usr/share/harbour-zasterbanker/` (paths compiled into the
+  libraries). Both `harbour-zasterbanker.pro` and
+  `tests/engine/engine-tests.pro` include it, so the tests read exactly the
+  profiles the RPM holds.
 - **Build engine quirks** the script works around, all because the build
   engine sees the home folder through a shared folder: `tar` cannot set file
   times there (the script re-applies them from the archive, otherwise autotools
@@ -188,8 +199,9 @@ and transfers), but setting up a FinTS user is only offered as the "control"
 commands of `aqhbci-tool4`, which print to the terminal.
 `src/AqHbciShim.c` does what those commands do - adduser, getsysid,
 getaccounts, listitanmodes, setitanmode, deluser - line by line after them,
-but with structured results. It includes aqhbci's internal headers from the
-unpacked source tree, which works because AqBanking is linked statically.
+but with structured results. It includes aqhbci's internal headers, copied
+from AqBanking's source tree by `build-deps.sh`, which works because AqBanking
+is linked statically.
 **When upgrading AqBanking, compare the shim with the control commands in
 `src/libs/plugins/backends/aqhbci/control/`.**
 
@@ -428,6 +440,14 @@ the transactions page, which a depot has no use for.
   cryptographically secure generator meant for keys; accepted.
 - Known limit: text typed into QML fields (PIN, TAN) lives in Qt's string
   memory until it is reused; it cannot be wiped from C++.
+- Known gap (found 2026-11-08 by the tests): `AB_Banking_new()` looks for an
+  old AqBanking configuration to copy over, at `~/.aqbanking/settings6/users`
+  and `~/.aqbanking/settings/users`, and Gwenhywfar's path lookup creates the
+  folders on the way (empty). Under Sailjail the app may neither create nor
+  read anything there, so this should come to nothing on the phone; without
+  Sailjail, it would create the two empty folders, and copy over the plain
+  configuration of another AqBanking application if there is one. Not
+  patched (yet).
 
 ### Bank list
 
@@ -437,19 +457,28 @@ currently `~/Dokumente/Entwicklung/Zaster Banker/fints_institute NEU/`).
 `tools/import-banklist.py` turns it into `db/fints_institutes.db`, keeping only
 institutes with a PIN/TAN URL and FinTS 3.0, and adding a search key (lower
 case, umlauts spelled out). Cells the spreadsheet left as `#NV` (Excel's
-#N/A; a few BICs and cities) become empty. The database is **not in Git** - the list is
-licensed to registered developers - but is packaged into the RPM. Regenerate it
-whenever a new list arrives:
+#N/A; a few BICs and cities) become empty. The database is **not in this
+repository** - the list is licensed to registered developers - but is packaged
+into the RPM. For the CI it lives in the **private** repository
+[Wunderfitz/fints-institutes](https://github.com/Wunderfitz/fints-institutes)
+(cloned at `~/git/fints-institutes`, decided 2026-11-08), which the build job
+checks out with a read-only token. Regenerate it whenever a new list arrives,
+and commit and push it there:
 
 ```sh
 tools/import-banklist.py "$HOME/Dokumente/Entwicklung/Zaster Banker/fints_institute NEU/fints_institute NEU mit BIC Master.csv"
+cp db/fints_institutes.db ~/git/fints-institutes/
 ```
+
+That repository must stay private. `tests/data/institutes.csv` is a made-up list
+in the same layout, for the tests and nothing else.
 
 ### Layout
 
 One qmake project at the root, as in Fernschreiber and Chronograph: `src/`,
 `qml/` (`pages/`, `components/`, `cover/`, `js/`), `images/`, `icons/`,
-`translations/`, `rpm/`, plus `3rdparty/` and `tools/`. Sailjail organisation
+`translations/`, `rpm/`, plus `3rdparty/`, `tools/`, `tests/` and
+`.github/workflows/`. Sailjail organisation
 `de.ygriega`, application `zasterbanker` - `main.cpp` sets the same names, so
 `QStandardPaths` points where Sailjail allows writing.
 
@@ -497,6 +526,92 @@ One qmake project at the root, as in Fernschreiber and Chronograph: `src/`,
   `/dev/input/event*` in the guest does not reach the compositor. The SDK key also
   logs in as `root` there, which the tests use to patch the installed QML
   temporarily.
+
+### Tests
+
+Decided 2026-11-08, together with the CI: what had been checked by hand in the
+emulator so far (see [Verification status](#verification-status)) is now
+checked on every push.
+
+- **`tests/host/`**: the tools in `tools/`, run as programs on made-up input,
+  with nothing but Python 3: `import-banklist.py` (what is kept, merged, left
+  empty, the search key) and `po2mo.py` (fuzzy, untranslated and obsolete
+  entries, and printf formats that do not match, all left out), checked by
+  reading the output with Python's own gettext.
+
+  ```sh
+  python3 -m unittest discover -s tests/host -v
+  ```
+
+- **`tests/engine/`**: one program, `tst_engine`, linking the real sources with
+  AqBanking, Gwenhywfar and Qt 5.6 as the app has them, and printing PASS or
+  FAIL per check as the author's other apps do. It covers
+  `EncryptedConfigStore` (the file format, decrypted independently, wrong key
+  and every kind of damage refused, fresh nonces, mode 0600, the "dir"
+  manager's behaviour AqBanking relies on), `GwenGui` through Gwenhywfar's own
+  GUI API with a stand-in banking thread (`FakeBankingThread.cpp`: every rule of
+  the PIN memory, with a fake clock through `GwenGui::setClock()`, the filter on
+  the bank's texts, TAN images, message boxes, the certificate check),
+  statements read the way the app reads them (AqBanking started on the
+  encrypted store, its real importers with the profiles the package installs,
+  merged as the aqhbci jobs merge them, then `StatementReader`: MT940, MT942,
+  CAMT 052.001.08 and .02, MT535 with all three fixes of the MT535 patch, the
+  choice of balance), the models, and the bank search on the made-up list.
+  `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
+  `tests/run-engine-tests.sh` builds it in the build engine, from the i486
+  build directory, whose binaries run natively; it installs AqBanking's data
+  files with `make install` and makes the bank list from
+  `tests/data/institutes.csv`:
+
+  ```sh
+  cd ~/git/build-harbour-zasterbanker-4.6.0.13-i486
+  ~/SailfishOS/bin/sfdk -c target=SailfishOS-4.6.0.13-i486 build-shell ../harbour-zasterbanker/tests/run-engine-tests.sh
+  ```
+
+  Two things the build engine needs: the program links with `--as-needed`, as
+  the package build does (GnuTLS's flags name libatomic, which the target has
+  no runtime library of), and it replaces `getpwuid()`, as the target has no
+  passwd entry for the build user and `AB_Banking_new()` aborts without a home
+  directory. The tests' home folder is an empty one of their own, and they
+  check that AqBanking writes no file there.
+- Not covered: `KeyStore` (needs the Sailfish Secrets daemon), anything that
+  talks to a bank, AqBanking's choice between CAMT and MT940 (it needs made-up
+  bank parameters, done once on the emulator on 2026-11-05), and the UI
+  (`tests/search-focus.sh` needs the emulator).
+
+### Continuous integration
+
+`.github/workflows/build.yml` (added 2026-11-08), modelled on Chronograph's:
+
+- **Pushes to master build a nightly**, kept as the run's artifacts for 30 days;
+  **a tag on master is a release**, a semantic version, with the changelog's
+  entry as notes. Nothing runs for pull requests or other branches, and nothing
+  by hand: those would get near the secrets. The project owner accepted that
+  nightlies are effectively published builds, with the real registration number
+  and the bank list inside (2026-11-08): anyone signed in to GitHub can download
+  a public repository's artifacts.
+- **Jobs**: version → libraries (per architecture) → tests → build of the four
+  packages (4.6 aarch64 and armv7hl, 5.1 aarch64 and i486), each followed by
+  Harbour's validation (`mb2 check`, as `sfdk check`) → release. The RPMs are
+  renamed after their target (`harbour-zasterbanker-0.5.0-1.sfos5.1.aarch64.rpm`),
+  as the 4.6 and 5.1 aarch64 packages would share a file name.
+- **The libraries are kept in GitHub's Actions cache**, keyed by
+  `build-deps.sh`, the patches, `po2mo.py` and the build engine's image; a run
+  that finds them missing builds them itself (an hour or so per architecture,
+  in parallel), without `bin/`, which only their own build needs. GitHub drops
+  cache entries unused for a week, so a weekly scheduled run restores them,
+  or builds them again, and does nothing else. Release assets were considered
+  and rejected: they would show up next to the app's releases, and publishing
+  the libraries' binaries would mean publishing their sources beside them.
+- **Build engines**: `coderus/sailfishos-platform-sdk` 4.6.0.13 and 5.1.0.11,
+  pinned by digest in the workflow, as they run privileged. Each job works in a
+  copy of the sources inside the container, as Chronograph's build action does.
+- **Secrets**, used by the build job only - never by the jobs that run the
+  libraries' build scripts or the tests: `FINTS_REGISTRATION_NUMBER` becomes
+  `src/FinTsRegistration.h` (letters and digits only, never printed), and
+  `FINTS_DATABASE_ACCESS_TOKEN`, a fine-grained read-only token for
+  `Wunderfitz/fints-institutes`, fetches the bank list; the checkout keeps no
+  credentials and is removed before the build engine starts.
 
 ### Development device
 
