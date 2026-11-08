@@ -60,6 +60,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
       prerelease: ${{ steps.version.outputs.prerelease }}
+      commit: ${{ steps.version.outputs.commit }}
 
     steps:
       # The whole history, to tell whether a tag's commit is on master.
@@ -68,8 +69,9 @@ jobs:
           fetch-depth: 0
 
       # A nightly keeps the spec's Version and has to lose to the release it
-      # precedes: RPM compares Release field by field, so "0.<when>.git<commit>"
-      # sorts below a release's "1". A tag is the version itself, and must be a
+      # precedes: RPM compares Release field by field, so "0.<when>" sorts
+      # below a release's "1". Harbour's validation allows digits, periods and
+      # underscores only, so the commit goes into the artifact's name instead. A tag is the version itself, and must be a
       # semantic version - a leading "v" is let pass and left out - on a commit
       # that is on master; anything else stops here, before anything is built.
       - name: Work out the version
@@ -81,7 +83,7 @@ jobs:
 
           if [[ "$GITHUB_REF" != refs/tags/* ]]; then
               version="$spec_version"
-              release="0.$(date -u +%Y%m%d%H%M).git$(git rev-parse --short HEAD)"
+              release="0.$(date -u +%Y%m%d%H%M)"
               prerelease=false
           else
               tag="$GITHUB_REF_NAME"
@@ -127,6 +129,7 @@ jobs:
               echo "version=$version"
               echo "release=$release"
               echo "prerelease=$prerelease"
+              echo "commit=$(git rev-parse --short HEAD)"
           } >> "$GITHUB_OUTPUT"
 
   # The third-party libraries, from the cache or built afresh (an hour or so
@@ -343,7 +346,7 @@ jobs:
       - name: Upload the RPMs
         uses: actions/upload-artifact@v7
         with:
-          name: harbour-zasterbanker-${{ needs.version.outputs.version }}-${{ needs.version.outputs.release }}.sfos${{ matrix.sfos }}.${{ matrix.arch }}
+          name: harbour-zasterbanker-${{ needs.version.outputs.version }}-${{ needs.version.outputs.release }}.sfos${{ matrix.sfos }}.${{ matrix.arch }}.git${{ needs.version.outputs.commit }}
           path: RPMS/*.rpm
           if-no-files-found: error
           retention-days: 30

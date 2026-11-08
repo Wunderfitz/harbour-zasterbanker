@@ -595,6 +595,11 @@ checked on every push.
   Harbour's validation (`mb2 check`, as `sfdk check`) → release. The RPMs are
   renamed after their target (`harbour-zasterbanker-0.5.0-1.sfos5.1.aarch64.rpm`),
   as the 4.6 and 5.1 aarch64 packages would share a file name.
+- **A nightly's Release is `0.<UTC time>`**, e.g. `0.202611082222`, so that the
+  release it precedes (`-1`) installs over it as an update. Harbour's validation
+  allows only digits, periods and underscores there (found 2026-11-08: it
+  rejected `.git<commit>`), so the commit goes into the artifact's name. Test
+  packages built by hand for testers follow the same scheme.
 - **The libraries are kept in GitHub's Actions cache**, keyed by
   `build-deps.sh`, the patches, `po2mo.py` and the build engine's image; a run
   that finds them missing builds them itself (an hour or so per architecture,
