@@ -75,9 +75,11 @@ method but photoTAN. A report on how the app fares with your bank is welcome, in
 from the Jolla Store, [OpenRepos](https://openrepos.net/) and as a
 [GitHub release](https://github.com/Wunderfitz/harbour-zasterbanker/releases) once it
 has proven to work with banks across several data centres - so far it has only been
-tried with banks run by one (see [Banks](#banks)). Until then, there are no published
-packages. If you would like to test it with your bank, or help with its development,
-join the [testing and development group on Telegram](https://t.me/+K3rZ4wtYd7NjMWMy).
+tried with banks run by one (see [Banks](#banks)). Until then, the RPMs for testing are
+shared in the [testing and development group on Telegram](https://t.me/+K3rZ4wtYd7NjMWMy):
+join it if you would like to try the app with your bank, or help with its development.
+Install the RPM with `pkcon install-local` or the file manager, after allowing
+untrusted software in the Sailfish settings.
 
 Zaster Banker needs **Sailfish OS 4.6** or newer. It passes Harbour's validation (`sfdk
 check`) without any exception. Pick the package that matches your phone:
