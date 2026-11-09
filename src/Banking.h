@@ -50,6 +50,8 @@ class Banking : public QObject
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(Operation operation READ operation NOTIFY busyChanged)
     Q_PROPERTY(QString progressText READ progressText NOTIFY progressTextChanged)
+    /** What the bank answered to the last transaction fetch: its result codes with their texts. The bank's text: plain text only. */
+    Q_PROPERTY(QStringList bankMessages READ bankMessages NOTIFY bankMessagesChanged)
     Q_PROPERTY(AccountModel *accounts READ accounts CONSTANT)
     Q_PROPERTY(TransactionModel *transactions READ transactions CONSTANT)
     Q_PROPERTY(HoldingModel *holdings READ holdings CONSTANT)
@@ -91,6 +93,7 @@ public:
     bool busy() const;
     Operation operation() const;
     QString progressText() const;
+    QStringList bankMessages() const;
     AccountModel *accounts();
     TransactionModel *transactions();
     HoldingModel *holdings();
@@ -113,6 +116,7 @@ signals:
     void stateChanged();
     void busyChanged();
     void progressTextChanged();
+    void bankMessagesChanged();
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
                               const QStringList &choices, const QString &imageUrl);
     void interactionFinished(int interactionId);
@@ -126,6 +130,7 @@ private slots:
     void handleCommandStarted(int command);
     void handleCommandFinished(int command, bool success, const QString &message);
     void handleProgress(const QString &text);
+    void handleBankMessages(const QStringList &messages);
     void handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
                                     const QStringList &choices, const QImage &image);
     void handleInteractionFinished(int interactionId);
@@ -144,6 +149,7 @@ private:
     QString currentStateMessage;
     Operation currentOperation;
     QString currentProgressText;
+    QStringList currentBankMessages;
 };
 
 #endif // BANKING_H

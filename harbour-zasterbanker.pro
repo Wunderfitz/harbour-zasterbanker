@@ -59,6 +59,7 @@ DISTFILES += \
     qml/components/BankTotal.qml \
     qml/js/Format.js \
     qml/pages/AboutPage.qml \
+    qml/pages/BankMessagesPage.qml \
     qml/pages/CredentialsDialog.qml \
     qml/pages/DepotPage.qml \
     qml/pages/InstituteSearchPage.qml \

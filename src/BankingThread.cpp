@@ -67,6 +67,8 @@ const char APP_NAME[] = "ZasterBanker";
 const char FINTS_APP_VERSION[] = "0.5";
 const char DATA_FILE[] = "aqbanking.zbs";
 const int MAX_TAN_METHODS = 32;
+// FinTS allows 32 characters for the name of a TAN medium.
+const int MAX_TAN_MEDIUM_LENGTH = 32;
 const int MAX_USERS = 64;
 
 void wipe(QByteArray &data)
@@ -89,6 +91,7 @@ BankingThread::BankingThread(const QString &dataDirectory, QObject *parent)
     , banking(nullptr)
     , gui(nullptr)
     , configStore(nullptr)
+    , collectingBankMessages(false)
 {
     interactionResponse.accepted = false;
     interactionResponse.choice = 0;
@@ -261,6 +264,7 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
 void BankingThread::reportProgress(const QString &text)
 {
     if (!text.isEmpty()) {
+        collectBankMessage(text);
         emit progress(text);
     }
 }
@@ -268,8 +272,25 @@ void BankingThread::reportProgress(const QString &text)
 void BankingThread::reportError(const QString &text)
 {
     if (!text.isEmpty()) {
+        collectBankMessage(text);
         lastError = text;
         emit progress(text);
+    }
+}
+
+// AqBanking logs every result code the bank sends as "HBCI: 0020 - text (S)",
+// "S" for the answer to one segment, "M" for the whole message, whatever its
+// level (notice, warning or error). Not translated, so this is how to tell them
+// from AqBanking's own messages. Without them, a fetch that finds nothing says
+// nothing about why: the bank's warnings (3xxx) fail neither the job nor the call.
+void BankingThread::collectBankMessage(const QString &text)
+{
+    static const QString prefix = QStringLiteral("HBCI: ");
+    if (collectingBankMessages && text.startsWith(prefix)) {
+        const QString message = text.mid(prefix.length());
+        if (!bankMessages.contains(message)) {
+            bankMessages.append(message);
+        }
     }
 }
 
@@ -478,7 +499,40 @@ bool BankingThread::chooseTanMethod(uint32_t userUid)
     if (rv < 0) {
         qWarning() << "Selecting TAN method" << allowed.at(chosen).id << "failed" << rv;
     }
+    // Only when required: an optional name the user would have to look up for nothing.
+    if (allowed.at(chosen).tanMediumNeeded == 2) {
+        return chooseTanMedium(userUid);
+    }
     return true;
+}
+
+// Some banks (Deutsche Bank and Postbank for BestSign, for one) want the name of
+// the device the TAN comes from with every TAN, and refuse the dialog without it.
+// AqBanking cannot ask the bank for the list of names, so the user types it.
+bool BankingThread::chooseTanMedium(uint32_t userUid)
+{
+    QString hint;
+    forever {
+        const Response response = requestInteraction(TextInteraction, tr("TAN medium"),
+                                                     hint + tr("Your bank needs the name of the device or app you confirm with. "
+                                                               "You find it in the security settings of your online banking or "
+                                                               "of the bank's app, e.g. under \"Sicherheitsverfahren\" for BestSign. "
+                                                               "Enter it exactly as shown there, capitals included."));
+        if (!response.accepted) {
+            return false;
+        }
+        const QString name = QString::fromUtf8(response.text).trimmed();
+        if (name.isEmpty() || name.length() > MAX_TAN_MEDIUM_LENGTH) {
+            hint = tr("The name can have up to %1 characters.").arg(MAX_TAN_MEDIUM_LENGTH) + QLatin1Char(' ');
+            continue;
+        }
+        const int rv = ZB_SetTanMediumId(banking, userUid, name.toUtf8().constData());
+        if (rv < 0) {
+            qWarning() << "Setting the TAN medium failed" << rv;
+            return false;
+        }
+        return true;
+    }
 }
 
 void BankingThread::executeFetchBalances(const Command &command)
@@ -566,6 +620,8 @@ void BankingThread::executeFetchTransactions(const Command &command)
         publishAccounts();
     }
     lastError.clear();
+    bankMessages.clear();
+    collectingBankMessages = true;
 
     AB_TRANSACTION *job = AB_Transaction_new();
     AB_Transaction_SetCommand(job, AB_Transaction_CommandGetTransactions);
@@ -579,6 +635,9 @@ void BankingThread::executeFetchTransactions(const Command &command)
 
     AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
     const int rv = AB_Banking_SendCommands(banking, jobs, context);
+    collectingBankMessages = false;
+    // Before the result, so that the page has them when it learns the outcome.
+    emit bankMessagesReported(bankMessages);
     const bool jobFailed = AB_Transaction_GetStatus(job) == AB_Transaction_StatusError;
     AB_Transaction_List2_freeAll(jobs);
 

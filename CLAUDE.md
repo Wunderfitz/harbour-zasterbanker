@@ -198,7 +198,7 @@ AqBanking's public API covers accounts and jobs (balances, later transactions
 and transfers), but setting up a FinTS user is only offered as the "control"
 commands of `aqhbci-tool4`, which print to the terminal.
 `src/AqHbciShim.c` does what those commands do - adduser, getsysid,
-getaccounts, listitanmodes, setitanmode, deluser - line by line after them,
+getaccounts, listitanmodes, setitanmode, settanmediumid, deluser - line by line after them,
 but with structured results. It includes aqhbci's internal headers, copied
 from AqBanking's source tree by `build-deps.sh`, which works because AqBanking
 is linked statically.
@@ -243,8 +243,25 @@ One command on the banking thread, so the PIN is entered once:
 add the PIN/TAN user (FinTS 3.0, server URL from the bank list) → check the
 server certificate and fetch the system ID (the handshake; the bank reports
 the TAN methods it allows the user) → let the user choose if there is more
-than one → fetch the account list → fetch the balances. If any step but the
+than one → ask for the name of the TAN medium if the bank requires one for
+that method → fetch the account list → fetch the balances. If any step but the
 last fails, the half-made user is deleted again: nothing is left behind.
+
+- **The TAN medium name** (added 2026-11-09 for Deutsche Bank and Postbank,
+  whose BestSign failed without it; see [Verification status](#verification-status)).
+  Some banks want, with every TAN, the name of the device or app it comes from,
+  as the user named it in the bank's security settings. AqBanking sends one only
+  if it was set (`aqhbci-tool4 setTanMediumId`, `ZB_SetTanMediumId()`), and does
+  not know when it is needed: it reads the bank's field by its HKTAN version 2
+  name, `tanMediumIdNeeded`, while versions 4 to 7 call it `needTanMediumId`. So
+  `ZB_ListTanMethods()` reads it from the bank parameters itself (0 not allowed,
+  1 optional, 2 required), and setup asks only if it is required: an optional
+  name would send the user looking for something the bank does without. The
+  user types it, in the existing text dialog, as AqBanking cannot fetch the list
+  of media (`HKTAB`); adding that job would mean implementing protocol
+  ourselves. Up to 32 characters, as FinTS allows; capitals count, so the field
+  does not capitalise. It cannot be changed afterwards yet, other than by
+  setting the access up again.
 
 ### Overview page
 
@@ -327,6 +344,18 @@ last fails, the half-made user is deleted again: nothing is left behind.
 - When a job fails without an error message, the error says which way: never
   sent ("the bank does not offer...") or answer not readable. AqBanking itself
   only tells its log, which is off.
+- **The bank's messages can be read on the page** (added 2026-11-09 for the
+  comdirect report, as a diagnosis first). During a fetch, `BankingThread`
+  keeps every result line AqBanking passes to the GUI as `HBCI: <code> -
+  <text> (S|M)`, its own untranslated format, whatever the level: these are the
+  only trace of a bank's warnings (3xxx), which fail neither the job nor the
+  call. They go to the page before the result (`bankMessagesReported`,
+  `Banking::bankMessages`). If there are any, the pull-down menu has "Messages
+  from the bank" and the placeholders say so; `BankMessagesPage` lists them as
+  plain text and can copy them, to paste into a problem report. Dialog opening
+  and closing bring their own lines (0020, 0100, 3920...), so the list is longer
+  than the one that matters; whether to filter it is open. Only for
+  transactions so far.
 
 ### Depots
 
@@ -433,6 +462,8 @@ the transactions page, which a depot has no use for.
   in a purpose would make the app load from that address. Every label in
   `TransactionsPage` showing such text, and in `DepotPage` the bank's names,
   sets `Text.PlainText`; keep it that way.
+  The same goes for the message in `PinDialog` (PIN and any text the bank
+  asks for), which `GwenGui` hands over as plain text already.
   Known gap: the overview's account name and owner, and page headers and
   placeholders showing the bank's messages, still use the default.
 - Gwenhywfar switches libgcrypt to "quick random", which downgrades requests
@@ -556,7 +587,10 @@ checked on every push.
   encrypted store, its real importers with the profiles the package installs,
   merged as the aqhbci jobs merge them, then `StatementReader`: MT940, MT942,
   CAMT 052.001.08 and .02, MT535 with all three fixes of the MT535 patch, the
-  choice of balance), the models, and the bank search on the made-up list.
+  choice of balance), the TAN methods the shim lists from made-up bank
+  parameters (whether a TAN medium is required, in both of HKTAN's field
+  names) and the TAN medium it stores, the models, and the bank search on the
+  made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from the i486
   build directory, whose binaries run natively; it installs AqBanking's data
@@ -736,9 +770,47 @@ project unless the owner says so.
   owner set up their access at the GLS Gemeinschaftsbank eG, and it worked
   smoothly. It is an Atruvia bank as well (`fints1.atruvia.de`, where the
   Volksbank is on `fints2`), so this says nothing about other data centres.
-- Not verified yet: banks in other data centres (Sparkassen, private banks),
-  the other TAN methods, removing a bank access, and the reset after an
-  unreadable store.
+- **2026-11-09, real banks, testers: EthikBank and DKB.** The first testers
+  reported the current feature set working at the EthikBank eG (Atruvia,
+  `fints1.atruvia.de`) and the Deutsche Kreditbank (DKB, `fints.dkb.de`, its
+  own server): **the first bank outside Atruvia.** Only the overall result was
+  reported, not the TAN methods or which features were tried in detail
+  (depots, for instance).
+- 2026-11-09, real bank, tester: **comdirect** (`fints.comdirect.de`, its own
+  server). Setup and balances work, but opening an account showed "Keine
+  Umsätze - Die Bank meldet für die letzten 90 Tage keine", on an account the
+  tester says has transactions. So the fetch counted as a success: the bank
+  answered, AqBanking reported no error, and nothing in the answer was read
+  as a transaction. Both AqBanking jobs end like this when the answer holds no
+  statement, and the bank's warnings (3xxx) only reach the progress line, so
+  the reason is unknown. comdirect had a known fault in its CAMT statements in
+  January 2026 (other apps' workaround: MT940, `HKKAZ`, instead of CAMT,
+  `HKCAZ`), and CAMT is what the app asks for first. The test build
+  `0.5.0-0.202611092148` shows the bank's messages for a fetch (see
+  [Transactions](#transactions)), to find out what comdirect says; the
+  project owner chose that over falling back to MT940 when CAMT brings
+  nothing, which is the next step if the messages point there.
+- 2026-11-09, real banks, testers: **Deutsche Bank and Postbank fail with
+  BestSign** (`fints.deutsche-bank.de`, `hbci.postbank.de`). Setting up the
+  access stops right after choosing BestSign, with "HBCI: 9999 - Dialog
+  bereits geschlossen. (S)": the bank's answer to one segment ("S"; "M" would
+  be the whole message). Not looked into on a real bank yet. The likely cause:
+  these banks need the name of the TAN medium (the BestSign device, as named in
+  the bank's security settings) in `HKTAN`, and AqBanking only sends one if it
+  was set by hand (`aqhbci-tool4 setTanMediumId`); it never fetches the list of
+  media (`HKTAB`). python-fints saw the same codes at Postbank in 2019, GnuCash
+  users got BestSign working with a TAN medium ID set in 2025. The test build
+  `0.5.0-0.202611092123` asks for the name at setup (see
+  [Setting up a bank access](#setting-up-a-bank-access)); its result is
+  awaited.
+- 2026-11-09, emulator (5.1), sample messages patched into the QML, real touch
+  input: the empty transactions page says to pull down, the menu has "Messages
+  from the bank", and its page lists them with markup kept literal. Copying them
+  was not checked, nor the messages of a real fetch. The engine tests check the
+  TAN methods and medium; the setup dialog for the medium was not seen.
+- Not verified yet: Sparkassen and other data centres or private banks besides
+  the DKB, the other TAN methods (as far as is known), removing a bank access,
+  and the reset after an unreadable store.
 
 ## Roadmap
 
@@ -746,7 +818,7 @@ project unless the owner says so.
 testing phase for brave users, with a testing and development group on Telegram
 (linked in the README), where the RPMs for testing are shared. It will be published in the Jolla Store, on OpenRepos and
 as a GitHub release once it has proven to work with banks across several
-backends; so far only Atruvia banks have been tried.
+backends; so far Atruvia banks and the DKB have been tried (2026-11-09).
 
 Iterations are decided one at a time by the project owner. Known so far:
 

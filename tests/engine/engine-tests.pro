@@ -26,7 +26,9 @@ SOURCES += \
     tst_institutesearch.cpp \
     tst_models.cpp \
     tst_statements.cpp \
+    tst_tanmethods.cpp \
     $$ZB_ROOT/src/AccountModel.cpp \
+    $$ZB_ROOT/src/AqHbciShim.c \
     $$ZB_ROOT/src/EncryptedConfigStore.cpp \
     $$ZB_ROOT/src/GwenGui.cpp \
     $$ZB_ROOT/src/HoldingModel.cpp \
@@ -38,6 +40,7 @@ HEADERS += \
     Check.h \
     FakeBankingThread.h \
     $$ZB_ROOT/src/AccountModel.h \
+    $$ZB_ROOT/src/AqHbciShim.h \
     $$ZB_ROOT/src/BankingThread.h \
     $$ZB_ROOT/src/EncryptedConfigStore.h \
     $$ZB_ROOT/src/GwenGui.h \

@@ -62,10 +62,14 @@ been tried:
 |---|---|---|
 | **Volksbank** (Atruvia data centre) | smartTAN photo | The development bank. Setup, balances, transactions, a depot of shares, a photoTAN during a balance fetch, the remembered PIN. |
 | **GLS Gemeinschaftsbank** (Atruvia data centre) | not recorded | Setting up the bank access, with its accounts and balances. |
+| **EthikBank** (Atruvia data centre) | not recorded | Reported by testers: the current features work. |
+| **DKB** (Deutsche Kreditbank, own server) | not recorded | Reported by testers: the current features work. |
+| **comdirect** (own server) | not recorded | Reported by a tester: setup and balances work. Transactions did not show up, which is being looked into. |
+| **Deutsche Bank**, **Postbank** | BestSign | Reported by testers: setting up the bank access fails after choosing BestSign. Being looked into. |
 
-Both are cooperative banks run by the same data centre, Atruvia. Sparkassen, private
-banks and other data centres have not been tried yet, nor any TAN
-method but photoTAN. A report on how the app fares with your bank is welcome, in the
+Three are cooperative banks run by the same data centre, Atruvia; the DKB, comdirect,
+Deutsche Bank and Postbank run FinTS servers of their own. Sparkassen, other private banks and other data centres have not been
+tried yet, and photoTAN is the only TAN method known to have been used. A report on how the app fares with your bank is welcome, in the
 [Telegram group](https://t.me/+K3rZ4wtYd7NjMWMy) or as described in
 [Reporting a problem](#reporting-a-problem).
 
@@ -74,8 +78,8 @@ method but photoTAN. A report on how the app fares with your bank is welcome, in
 **Zaster Banker is in an early testing phase, for brave users.** It will be available
 from the Jolla Store, [OpenRepos](https://openrepos.net/) and as a
 [GitHub release](https://github.com/Wunderfitz/harbour-zasterbanker/releases) once it
-has proven to work with banks across several data centres - so far it has only been
-tried with banks run by one (see [Banks](#banks)). Until then, the RPMs for testing are
+has proven to work with banks across several data centres - so far it has been tried
+with banks of Atruvia and with the DKB (see [Banks](#banks)). Until then, the RPMs for testing are
 shared in the [testing and development group on Telegram](https://t.me/+K3rZ4wtYd7NjMWMy):
 join it if you would like to try the app with your bank, or help with its development.
 Install the RPM with `pkcon install-local` or the file manager, after allowing

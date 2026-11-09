@@ -48,6 +48,8 @@ extern "C" {
 #include <aqbanking/backendsupport/provider_be.h>
 }
 
+void tanMethodTests(AB_BANKING *banking, const QString &installedData);
+
 namespace {
 
 const uint32_t ACCOUNT_ID = 42;
@@ -394,6 +396,8 @@ void runStatementTests(const QString &installedData)
     mt942Tests(banking);
     camtTests(banking);
     mt535Tests(banking);
+    // On the same AqBanking: the shim's TAN methods, from made-up bank parameters.
+    tanMethodTests(banking, installedData);
 
     AB_Banking_Fini(banking);
     AB_Banking_free(banking);

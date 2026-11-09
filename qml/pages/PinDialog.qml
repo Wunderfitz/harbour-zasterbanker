@@ -81,6 +81,9 @@ Dialog {
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
                 color: Theme.highlightColor
+                // Already plain text (GwenGui strips the markup): whatever looks like
+                // a tag in there is the bank's text and must not be rendered.
+                textFormat: Text.PlainText
                 text: pinDialog.message
             }
 
@@ -112,7 +115,8 @@ Dialog {
                 visible: !pinDialog.secret
                 focus: !pinDialog.secret
                 label: pinDialog.heading
-                inputMethodHints: Qt.ImhNoPredictiveText
+                // What the bank asks for has to match exactly, capitals included.
+                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase
                 EnterKey.iconSource: "image://theme/icon-m-enter-accept"
                 EnterKey.enabled: pinDialog.canAccept
                 EnterKey.onClicked: pinDialog.accept()

@@ -116,6 +116,8 @@ signals:
     void accountsChanged(const QVariantList &accounts);
     void balancesFetched(const QVariantList &balances);
     void transactionsFetched(uint accountId, const QVariantList &transactions);
+    /* What the bank answered to a transaction fetch, line by line: its result codes with their texts. */
+    void bankMessagesReported(const QStringList &messages);
     void holdingsFetched(uint accountId, const QVariantList &holdings);
     void commandStarted(int command);
     void commandFinished(int command, bool success, const QString &message);
@@ -146,6 +148,8 @@ private:
     void executeRemoveBankAccess(const Command &command);
     void executeResetData();
     bool chooseTanMethod(uint32_t userUid);
+    bool chooseTanMedium(uint32_t userUid);
+    void collectBankMessage(const QString &text);
     void publishAccounts();
     void loadStoredBalances();
     void storeBalances(const QVariantList &balances);
@@ -171,6 +175,9 @@ private:
     GWEN_GUI *gui;
     EncryptedConfigStore *configStore;
     QString lastError;
+    /* The bank's result lines are kept while this is set, in bankMessages. */
+    bool collectingBankMessages;
+    QStringList bankMessages;
     /* The last balance of each account, kept in the encrypted store, by account ID. */
     QHash<uint, QVariantMap> storedBalances;
 };

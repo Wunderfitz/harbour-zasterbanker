@@ -54,6 +54,8 @@ typedef struct {
     /* Offered by the bank to this user (and not just known to the bank) */
     int allowed;
     int selected;
+    /* The bank's "TAN medium name required": 0 not allowed, 1 optional, 2 required */
+    int tanMediumNeeded;
 } ZB_TAN_METHOD;
 
 typedef struct {
@@ -74,6 +76,7 @@ int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid);
 
 int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int maxMethods);
 int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId);
+int ZB_SetTanMediumId(AB_BANKING *ab, uint32_t uid, const char *tanMediumId);
 
 int ZB_ListUsers(AB_BANKING *ab, ZB_USER_INFO *users, int maxUsers);
 int ZB_GetAccountUser(AB_BANKING *ab, uint32_t accountUid, uint32_t *pUserUid);

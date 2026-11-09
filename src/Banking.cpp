@@ -46,6 +46,7 @@ Banking::Banking(const QString &dataDirectory, TanImageProvider *tanImageProvide
     connect(&thread, &BankingThread::commandStarted, this, &Banking::handleCommandStarted);
     connect(&thread, &BankingThread::commandFinished, this, &Banking::handleCommandFinished);
     connect(&thread, &BankingThread::progress, this, &Banking::handleProgress);
+    connect(&thread, &BankingThread::bankMessagesReported, this, &Banking::handleBankMessages);
     connect(&thread, &BankingThread::interactionRequested, this, &Banking::handleInteractionRequested);
     connect(&thread, &BankingThread::interactionFinished, this, &Banking::handleInteractionFinished);
 
@@ -82,6 +83,11 @@ Banking::Operation Banking::operation() const
 QString Banking::progressText() const
 {
     return currentProgressText;
+}
+
+QStringList Banking::bankMessages() const
+{
+    return currentBankMessages;
 }
 
 TransactionModel *Banking::transactions()
@@ -235,6 +241,12 @@ void Banking::handleProgress(const QString &text)
 {
     currentProgressText = text;
     emit progressTextChanged();
+}
+
+void Banking::handleBankMessages(const QStringList &messages)
+{
+    currentBankMessages = messages;
+    emit bankMessagesChanged();
 }
 
 void Banking::handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,

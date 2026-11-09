@@ -28,11 +28,13 @@
 #include "aqhbci/banking/account.h"
 #include "aqhbci/banking/provider_online.h"
 #include "aqhbci/banking/user.h"
+#include "aqhbci/joblayer/job_l.h"
 #include "aqhbci/tan/tanmethod.h"
 
 #include <gwenhywfar/error.h>
 #include <gwenhywfar/url.h>
 
+#include <stdlib.h>
 #include <string.h>
 
 #define ZB_AQHBCI_BACKEND "aqhbci"
@@ -143,6 +145,43 @@ int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid)
     return rv;
 }
 
+/* Whether the bank wants the name of the TAN medium (the device or app, e.g.
+ * BestSign at Deutsche Bank and Postbank) with each TAN, read from its
+ * parameters as AH_User_LoadTanMethods() reads the rest. AqBanking reads this
+ * field by its HKTAN version 2 name only, while versions 4 to 7 call it
+ * "needTanMediumId", so it never knows. GWEN_DB_GetIntValue() reads both the
+ * number of version 2 and the digit of the later ones. */
+static void readTanMediumNeeded(AB_USER *user, ZB_TAN_METHOD *methods, int count)
+{
+    GWEN_DB_NODE *db;
+    GWEN_DB_NODE *dbVersion;
+
+    db = GWEN_DB_Group_new("bpd");
+    if (AH_Job_SampleBpdVersions("JobTan", user, db) >= 0) {
+        for (dbVersion = GWEN_DB_GetFirstGroup(db); dbVersion; dbVersion = GWEN_DB_GetNextGroup(dbVersion)) {
+            const int version = atoi(GWEN_DB_GroupName(dbVersion));
+            GWEN_DB_NODE *dbMethod;
+
+            for (dbMethod = GWEN_DB_FindFirstGroup(dbVersion, "tanMethod"); dbMethod;
+                 dbMethod = GWEN_DB_FindNextGroup(dbMethod, "tanMethod")) {
+                const int id = version * 1000 + GWEN_DB_GetIntValue(dbMethod, "function", 0, 0);
+                int needed = GWEN_DB_GetIntValue(dbMethod, "needTanMediumId", 0, -1);
+                int i;
+
+                if (needed < 0) {
+                    needed = GWEN_DB_GetIntValue(dbMethod, "tanMediumIdNeeded", 0, 0);
+                }
+                for (i = 0; i < count; i++) {
+                    if (methods[i].id == id) {
+                        methods[i].tanMediumNeeded = needed;
+                    }
+                }
+            }
+        }
+    }
+    GWEN_DB_Group_free(db);
+}
+
 int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int maxMethods)
 {
     AB_PROVIDER *pro;
@@ -186,9 +225,11 @@ int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int 
             copyString(target->name, (name && *name) ? name : AH_TanMethod_GetMethodId(method));
             target->allowed = AH_User_HasTanMethod(user, function) ? 1 : 0;
             target->selected = (AH_User_GetSelectedTanMethod(user) % 1000 == function) ? 1 : 0;
+            target->tanMediumNeeded = 0;
         }
         method = AH_TanMethod_List_Next(method);
     }
+    readTanMediumNeeded(user, methods, count);
 
     AB_User_free(user);
     AB_Banking_EndUseProvider(ab, pro);
@@ -217,6 +258,31 @@ int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId)
             if (rv < 0) {
                 AB_Provider_EndExclUseUser(pro, user, 1);
             }
+        }
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+int ZB_SetTanMediumId(AB_BANKING *ab, uint32_t uid, const char *tanMediumId)
+{
+    AB_PROVIDER *pro;
+    AB_USER *user = NULL;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    /* As in AH_Control_SetTanMediumId(): lock, modify, write back on unlock.
+     * AqBanking then puts it into every HKTAN of this user. */
+    rv = AB_Provider_GetUser(pro, uid, 1, 0, &user);
+    if (rv >= 0) {
+        AH_User_SetTanMediumId(user, (tanMediumId && *tanMediumId) ? tanMediumId : NULL);
+        rv = AB_Provider_EndExclUseUser(pro, user, 0);
+        if (rv < 0) {
+            AB_Provider_EndExclUseUser(pro, user, 1);
         }
         AB_User_free(user);
     }
