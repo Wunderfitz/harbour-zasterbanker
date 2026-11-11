@@ -1,0 +1,27 @@
+--- aqbanking-6.9.2.orig/src/libs/plugins/backends/aqhbci/ajobs/jobgettrans_camt.c	2026-11-11 20:58:47.368921606 +0100
++++ aqbanking-6.9.2/src/libs/plugins/backends/aqhbci/ajobs/jobgettrans_camt.c	2026-11-11 20:58:47.380041235 +0100
+@@ -55,6 +55,7 @@
+ {
+   AH_JOB *j;
+   GWEN_DB_NODE *dbArgs;
++  const char *s;
+   int rv;
+ 
+   DBG_INFO(AQHBCI_LOGDOMAIN, "Trying to create CAMT job");
+@@ -86,7 +87,15 @@
+   }
+ 
+   /* set some known arguments */
+-  AH_AccountJob_WriteNationalAccountInfoToArgs(j);
++  /* Zaster Banker: identify the account by IBAN and BIC, as every other job with a
++   * KTI does (HKSAL 7, HKKAZ 7). AH_AccountJob_new() already adds the national
++   * account specification where the bank allows it (HISPAS) or the account is
++   * flagged for it; here it is only added if there is no IBAN to go by. Sent
++   * unconditionally, comdirect rejected the account ("3010 Kontonummer ist
++   * ungueltig"). */
++  s=AB_Account_GetIban(account);
++  if (!(s && *s))
++    AH_AccountJob_WriteNationalAccountInfoToArgs(j);
+   GWEN_DB_SetCharValue(dbArgs, GWEN_DB_FLAGS_DEFAULT, "allAccounts", "N");
+   return j;
+ }

@@ -638,30 +638,6 @@ void BankingThread::executeFetchTransactions(const Command &command)
     // reports an error: without transactions, that is not "no transactions".
     bool success = rv >= 0 && hasAnswer && !jobFailed && (!transactions.isEmpty() || lastError.isEmpty());
 
-    // CAMT accepted without a single transaction: ask again for MT940, as far as
-    // the bank offers it. comdirect rejects the CAMT request's account with 3010,
-    // the code for "no entries" (2026-11-11), and GnuCash and KMyMoney users never
-    // see that, as their AqBanking only asks for CAMT where they switch it on.
-    if (success && transactions.isEmpty() && camtFirst && jobs >= 0
-            && (jobs & ZB_TRANSACTION_JOB_CAMT) && (jobs & ZB_TRANSACTION_JOB_OTHER)) {
-        const int cleared = ZB_SetCamtDownload(banking, accountId, 0);
-        if (cleared < 0) {
-            qWarning() << "Could not clear the CAMT preference for this account" << cleared;
-        } else {
-            QVariantList fallbackTransactions;
-            bool fallbackAnswer = false;
-            bool fallbackFailed = false;
-            lastError.clear();
-            const int fallbackResult = requestTransactions(accountId, &fallbackTransactions, &fallbackAnswer, &fallbackFailed);
-            // Only an answer with transactions replaces the first one: the account
-            // may simply have none, and an error here says nothing about CAMT.
-            if (fallbackResult >= 0 && fallbackAnswer && !fallbackFailed && !fallbackTransactions.isEmpty()) {
-                transactions = fallbackTransactions;
-            }
-            lastError.clear();
-        }
-    }
-
     collectingBankMessages = false;
     // Before the result, so that the page has them when it learns the outcome.
     emit bankMessagesReported(bankMessages);

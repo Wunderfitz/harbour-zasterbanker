@@ -42,6 +42,13 @@ extern "C" {
 #include "aqhbci/banking/user.h"
 #include "aqhbci/banking/user_l.h"
 #include "aqhbci/msglayer/bpd_l.h"
+
+// From aqhbci's joblayer/job_l.h and ajobs/jobgettrans_camt_l.h, which C++
+// cannot include: result_l.h, which they pull in, names a parameter "or".
+typedef struct AH_JOB AH_JOB;
+AH_JOB *AH_Job_GetTransactionsCAMT_new(AB_PROVIDER *pro, AB_USER *u, AB_ACCOUNT *account);
+GWEN_DB_NODE *AH_Job_GetArguments(const AH_JOB *j);
+void AH_Job_free(AH_JOB *j);
 }
 
 namespace {
@@ -140,7 +147,7 @@ uint32_t addAccount(AB_BANKING *banking, uint32_t uid, const char *iban, const Q
     AB_ACCOUNT *account = AB_Provider_CreateAccountObject(provider);
     AB_Account_SetUserId(account, uid);
     AB_Account_SetBankCode(account, "12345678");
-    AB_Account_SetAccountNumber(account, QByteArray(iban).right(10).constData());
+    AB_Account_SetAccountNumber(account, *iban ? QByteArray(iban).right(10).constData() : "1234567890");
     AB_Account_SetIban(account, iban);
     AB_Account_SetBic(account, "TESTDEFFXXX");
     AB_Account_SetAccountType(account, AB_AccountType_Bank);
@@ -167,6 +174,41 @@ uint32_t addAccount(AB_BANKING *banking, uint32_t uid, const char *iban, const Q
     }
     AB_Banking_EndUseProvider(banking, provider);
     return accountUid;
+}
+
+// What AqBanking's CAMT job (HKCAZ) would identify the account by: the KTI's
+// fields it has arguments for, as "field=value", in the KTI's order.
+QStringList camtAccountArguments(AB_BANKING *banking, uint32_t uid, uint32_t accountUid)
+{
+    useInstalledDefinitions();
+    AB_PROVIDER *provider = AB_Banking_BeginUseProvider(banking, BACKEND);
+    AB_USER *user = nullptr;
+    AB_ACCOUNT *account = nullptr;
+    QStringList result;
+    if (AB_Provider_GetUser(provider, uid, 1, 1, &user) >= 0
+            && AB_Provider_GetAccount(provider, accountUid, 1, 1, &account) >= 0) {
+        AH_JOB *job = AH_Job_GetTransactionsCAMT_new(provider, user, account);
+        if (job) {
+            GWEN_DB_NODE *arguments = AH_Job_GetArguments(job);
+            for (const char *field : {"iban", "bic", "accountId", "accountSubId", "country", "bankCode"}) {
+                if (GWEN_DB_VariableExists(arguments, field)) {
+                    const QString value = GWEN_DB_GetValueTypeByPath(arguments, field, 0) == GWEN_DB_NodeType_ValueInt
+                                              ? QString::number(GWEN_DB_GetIntValue(arguments, field, 0, 0))
+                                              : QString::fromUtf8(GWEN_DB_GetCharValue(arguments, field, 0, ""));
+                    result.append(QStringLiteral("%1=%2").arg(QLatin1String(field), value));
+                }
+            }
+            AH_Job_free(job);
+        } else {
+            result.append(QStringLiteral("(no job)"));
+        }
+    }
+    AB_Account_free(account);
+    if (user) {
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(banking, provider);
+    return result;
 }
 
 QVariant prefersCamt(AB_BANKING *banking, uint32_t accountUid)
@@ -206,7 +248,9 @@ void transactionJobTests(AB_BANKING *banking, uint32_t uid)
     const uint32_t creditCard = addAccount(banking, uid, "DE75512108001245126199", {"DKKKS", "DKKKU"});
     // No jobs at all in the UPD
     const uint32_t unlisted = addAccount(banking, uid, "DE12500105170648489890", {});
-    if (!Check::that("Five accounts are added", both && camtOnly && mt940Only && creditCard && unlisted)) {
+    // An account the bank gave no IBAN for
+    const uint32_t noIban = addAccount(banking, uid, "", {"HKSAL", "HKCAZ"});
+    if (!Check::that("Six accounts are added", both && camtOnly && mt940Only && creditCard && unlisted && noIban)) {
         return;
     }
     const int camt = ZB_TRANSACTION_JOB_CAMT;
@@ -224,6 +268,14 @@ void transactionJobTests(AB_BANKING *banking, uint32_t uid)
     Check::equal("CAMT first where it lists nothing", ZB_PreferCamtFor(camt), 1);
     Check::equal("MT940 where it lists HKKAZ only", ZB_PreferCamtFor(camt | other), 0);
     Check::equal("CAMT first if the jobs are unknown", ZB_PreferCamtFor(-1), 1);
+
+    // AqBanking's CAMT job, as patched (aqbanking-6.9.2-camt-account.patch)
+    Check::equal("The CAMT request names the account by IBAN and BIC only", camtAccountArguments(banking, uid, both),
+                 QStringList({QStringLiteral("iban=DE02120300000000202051"), QStringLiteral("bic=TESTDEFFXXX")}));
+    Check::equal("Without an IBAN, by its account number and bank code",
+                 camtAccountArguments(banking, uid, noIban),
+                 QStringList({QStringLiteral("bic=TESTDEFFXXX"), QStringLiteral("accountId=1234567890"),
+                              QStringLiteral("country=280"), QStringLiteral("bankCode=12345678")}));
 
     Check::equal("No CAMT preference at first", prefersCamt(banking, both), false);
     int rv = setCamtDownload(banking, both, 1);

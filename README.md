@@ -64,8 +64,8 @@ been tried:
 | **GLS Gemeinschaftsbank** (Atruvia data centre) | not recorded | Setting up the bank access, with its accounts and balances. |
 | **EthikBank** (Atruvia data centre) | not recorded | Reported by testers: the current features work. |
 | **DKB** (Deutsche Kreditbank, own server) | not recorded | Reported by testers: the current features work. |
-| **comdirect** (own server) | not recorded | Reported by a tester: setup and balances work. Transactions did not show up, which is being looked into. |
-| **Deutsche Bank**, **Postbank** | BestSign | Reported by testers: setting up the bank access fails after choosing BestSign. Being looked into. |
+| **comdirect** (own server) | not recorded | Reported by a tester: setup and balances work. Transactions did not show up: the bank rejected the account in the request, which the next version changes. |
+| **Deutsche Bank**, **Postbank** | BestSign | Reported by testers: works once the name of the BestSign device is entered at setup. Transactions of a Postbank credit card failed, which the next version fixes. |
 
 Three are cooperative banks run by the same data centre, Atruvia; the DKB, comdirect,
 Deutsche Bank and Postbank run FinTS servers of their own. Sparkassen, other private banks and other data centres have not been
@@ -285,7 +285,10 @@ get wrong silently:
 - **CAMT first.** AqBanking only tries MT940 unless the account carries the flag
   `AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD`, and creates the MT940 job only if the bank's
   parameters list it - many banks today only offer CAMT. The app sets the flag, and
-  AqBanking falls back to MT940 by itself where CAMT is not offered. The `xml`
+  AqBanking falls back to MT940 by itself where CAMT is not offered. Not, though,
+  where the account's parameters list another job for transactions but not CAMT, such
+  as a credit card's own (`DKKKU`): AqBanking would send a CAMT request anyway, which
+  the bank refuses. The `xml`
   importer's `camt_*.conf` profiles are installed for this, and are not optional:
   AqBanking derives the formats it offers the bank from their file names.
 - **The account's BIC.** CAMT requests identify the account by IBAN and BIC, but the
@@ -345,8 +348,12 @@ backends only. Gwenhywfar and AqBanking are built with translations (glibc's get
 compiled from their German catalogues by `tools/po2mo.py`, as the build engine has no
 `msgfmt`.
 
-Four patches in `3rdparty/patches/` are applied on top:
+Five patches in `3rdparty/patches/` are applied on top:
 
+- **AqBanking: the account in CAMT requests.** The CAMT request for transactions named
+  the account by its national account number and bank code as well as IBAN and BIC,
+  which comdirect rejected. Like AqBanking's other requests, it now adds the national
+  part only where the bank allows it, or for an account without IBAN.
 - **AqBanking: no logs on disk.** AqBanking logs every FinTS message and every job to
   plain files in its data folder. Both are compiled out.
 - **AqBanking: depot answers.** `hbci.xml` defines the depot statement (`HIWPD`)

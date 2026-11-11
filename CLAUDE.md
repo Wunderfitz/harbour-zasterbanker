@@ -182,6 +182,16 @@ archives, and the app links them in.
   - `aqbanking-6.9.2-no-disk-logs.patch`: AqBanking logs every FinTS message
     (account data, balances, transactions) and every job to plain files in its
     data folder. Both are compiled out. Nothing of it reaches the disk.
+  - `aqbanking-6.9.2-camt-account.patch`: the CAMT job (`HKCAZ`) always named
+    the account by its national account number, sub-account and bank code as
+    well as IBAN and BIC, unlike every other job with an international account
+    (`HKSAL` 7, `HKKAZ` 7), which add those only where the bank allows it
+    (`HISPAS`) or the account is flagged for it. comdirect rejected the account
+    ("3010 Kontonummer ist ungültig", found 2026-11-11). Now the CAMT job follows
+    the same rule, and adds the national part only for an account without IBAN.
+    python-fints sends `HKCAZ` with IBAN and BIC only as well. Accepted by the
+    project owner over an MT940 fallback, as Commerzbank, comdirect's parent,
+    announced switching off MT940 on 2026-10-14 (see [Transactions](#transactions)).
   - `aqbanking-6.9.2-depot-response.patch`: `hbci.xml` defines `HIWPD` version 6
     twice, for the balance job and for `JobGetDepot`. The decoder takes the first,
     so a version 6 answer arrives as `data/BalanceInvestment`, and `JobGetDepot`,
@@ -330,23 +340,22 @@ last fails, the half-made user is deleted again: nothing is left behind.
   transactions but not `HKCAZ`: a UPD that lists `HKCAZ`, or no such job at all
   (Atruvia lists no `HKKAZ`), still means CAMT. A bank whose UPD lists `HKKAZ`
   but not `HKCAZ` gets MT940 directly, as in GnuCash and KMyMoney by default.
-- **MT940 again when CAMT brings nothing** (decided 2026-11-11, for comdirect;
-  see [Verification status](#verification-status)). If the CAMT request is
-  accepted without a single transaction and the account's UPD lists `HKKAZ`,
-  the fetch clears the flag and asks again; the answer replaces the first only
-  if it holds transactions, otherwise the result stays "no transactions".
-  `ZB_TransactionJobs()` tells beforehand which of the two jobs the bank's
-  parameters offer, by creating them as AqBanking would, without sending
-  anything, and whether the UPD lists `HKCAZ`. The flag stays cleared until the
-  next fetch sets it again, so every fetch decides afresh. This is the app's answer to what GnuCash and
-  KMyMoney leave to the user: their AqBanking asks for MT940 unless the user
-  ticks "Prefer Statement Download as CAMT" per account, which they do where
-  the bank no longer offers MT940 (Atruvia since November 2025). The
-  alternative, patching AqBanking's CAMT request (it always adds the national
-  account number, see comdirect below), was turned down: **AqBanking is patched
-  only as a last resort**, after looking at how GnuCash and KMyMoney solve the
-  problem. An account that really has no transactions costs a second request.
-  The bank's messages of both requests go to the page, once each.
+  `ZB_TransactionJobs()` tells which jobs AqBanking would create for the
+  account, by creating them without sending anything, and whether its UPD
+  lists `HKCAZ`; `ZB_SetCamtDownload()` sets or clears the flag before every
+  fetch (rewriting the store only when it changes), so every fetch decides
+  afresh.
+- **The CAMT request names the account by IBAN and BIC** (2026-11-11, patch
+  above). Before, it added the national account number as well, and comdirect
+  rejected the account with code 3010, which FinTS reserves for "no entries",
+  so the app showed no transactions. An MT940 fallback for an accepted CAMT
+  request without transactions was tried first and removed again with the
+  patch: it no longer had a cause to work around, cost a second request for
+  every account without transactions, and would not have helped once a bank
+  offers MT940 no more (Commerzbank, comdirect's parent, announced that for
+  2026-10-14). **AqBanking is patched only as a last resort**, after looking at
+  how GnuCash and KMyMoney solve the problem; this one the project owner
+  accepted for that risk.
 - **The account needs a BIC, which the account list does not bring** (found
   2026-11-06: the project owner's Volksbank answered `9160`, a mandatory field
   missing). `HKCAZ` identifies the account by IBAN and BIC, and only
@@ -644,8 +653,9 @@ checked on every push.
   parameters (whether a TAN medium is required, in both of HKTAN's field
   names) and the TAN medium it stores, the jobs for transactions it finds for
   made-up accounts (CAMT, MT940 or a credit card's job only where the UPD lists
-  it, and whether it lists `HKCAZ`), the choice of CAMT from those, and the
-  CAMT flag it sets and clears, the models, and the bank search on the
+  it, and whether it lists `HKCAZ`), the choice of CAMT from those, the
+  account AqBanking's (patched) CAMT job names (IBAN and BIC; account number
+  and bank code without IBAN), and the CAMT flag it sets and clears, the models, and the bank search on the
   made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from the i486
@@ -665,7 +675,7 @@ checked on every push.
   directory. The tests' home folder is an empty one of their own, and they
   check that AqBanking writes no file there.
 - Not covered: `KeyStore` (needs the Sailfish Secrets daemon), anything that
-  talks to a bank (so neither the fallback to MT940 itself), which job
+  talks to a bank, which job
   AqBanking sends for the flag (done once on the emulator on 2026-11-05), and the UI
   (`tests/search-focus.sh` needs the emulator).
 
@@ -875,9 +885,10 @@ project unless the owner says so.
   comdirect's Girokonto and depot are known to share one account number, which
   fits a bank that cannot resolve it. Not confirmed on the bank yet. GnuCash
   and KMyMoney users do not run into it: they get MT940 unless they ask for
-  CAMT. So the app now asks again for MT940 when CAMT brings nothing (see
-  [Transactions](#transactions)), in the test build `0.5.0-0.202611111919` for the
-  tester; its result is awaited.
+  CAMT. An MT940 fallback went into the test build `0.5.0-0.202611111919`
+  (not handed out); it was replaced by the AqBanking patch that has the CAMT
+  request name the account by IBAN and BIC only (see
+  [Transactions](#transactions)). Its result at comdirect is awaited.
 - 2026-11-11, real bank, tester: **a Postbank credit card's transactions fail**
   with `9050 - Teilweise fehlerhaft. (M)`, `9010 - Verarbeitung nicht möglich.
   (S)` and `9210 - Keine Daten zur übermittelten Auftragsreferenz vorhanden.
