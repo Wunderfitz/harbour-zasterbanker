@@ -283,6 +283,8 @@ void transactionJobTests(AB_BANKING *banking, uint32_t uid)
     if (!Check::that("Six accounts are added", both && camtOnly && mt940Only && creditCard && unlisted && noIban)) {
         return;
     }
+    Check::equal("The shim counts them", ZB_CountAccounts(banking, uid), 6);
+    Check::equal("and none for an unknown bank access", ZB_CountAccounts(banking, 0x7fffffff), 0);
     const int camt = ZB_TRANSACTION_JOB_CAMT;
     const int other = ZB_TRANSACTION_JOB_OTHER;
     const int listed = ZB_TRANSACTION_JOB_CAMT_LISTED;

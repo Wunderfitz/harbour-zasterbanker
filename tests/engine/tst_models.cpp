@@ -114,6 +114,17 @@ void accountTests()
     model.setBalances(QVariantList() << balance(23, 12.5, "USD"));
     Check::equal("accounts: a new balance replaces the old", role(model, 5, AccountModel::BalanceRole), 12.5);
     Check::equal("accounts: the others stay", role(model, 2, AccountModel::BalanceRole), 0.1);
+    Check::equal("accounts: an account is no entry without accounts", role(model, 0, AccountModel::NoAccountsRole), false);
+
+    // A bank access without accounts, as BankingThread::publishAccounts() lists it.
+    QVariantMap empty = account(0, 3, "");
+    empty.insert(QStringLiteral("noAccounts"), true);
+    model.setAccounts(QVariantList() << account(10, 1, "Giro") << empty);
+    Check::equal("accounts: a bank access without accounts is listed", model.rowCount(), 2);
+    Check::equal("accounts: as such", role(model, 1, AccountModel::NoAccountsRole), true);
+    Check::equal("accounts: with its bank's name", role(model, 1, AccountModel::BankNameRole), QStringLiteral("Bank 3"));
+    Check::equal("accounts: and no total", role(model, 1, AccountModel::BankTotalsRole).toList().size(), 0);
+    Check::equal("accounts: nor on the cover", model.syncedBanks().size(), 1);
 }
 
 QVariantMap transaction(const char *name, const QDate &date, bool pending = false)

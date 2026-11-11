@@ -62,7 +62,8 @@ public:
         RemoveBankAccess,
         ResetData,
         FetchTransactions,
-        FetchHoldings
+        FetchHoldings,
+        RetrieveAccounts
     };
 
     enum InitializationResult {
@@ -96,6 +97,8 @@ public:
     void fetchTransactions(uint accountId);
     void fetchHoldings(uint accountId);
     void removeBankAccess(uint bankAccessId);
+    /* Asks the bank for the access's accounts again, then for their balances. */
+    void retrieveAccounts(uint bankAccessId);
     void resetData();
     void respond(int interactionId, bool accepted, const QString &text, int choice);
     void cancelInteraction();
@@ -148,6 +151,10 @@ private:
     int requestTransactions(uint32_t accountId, QVariantList *transactions, bool *hasAnswer, bool *jobFailed);
     void executeFetchHoldings(const Command &command);
     void executeRemoveBankAccess(const Command &command);
+    void executeRetrieveAccounts(const Command &command);
+    /* The bank's result lines are kept from the first call to the second, and handed to the UI then. */
+    void startCollectingBankMessages();
+    void reportBankMessages();
     void executeResetData();
     bool chooseTanMethod(uint32_t userUid);
     bool chooseTanMedium(uint32_t userUid);

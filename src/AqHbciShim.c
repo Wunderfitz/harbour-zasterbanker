@@ -127,6 +127,39 @@ int ZB_GetSysId(AB_BANKING *ab, uint32_t uid)
     return rv;
 }
 
+static int countAccounts(AB_PROVIDER *pro, uint32_t uid)
+{
+    AB_ACCOUNT_LIST *accounts = AB_Account_List_new();
+    AB_ACCOUNT *account;
+    int rv = AB_Provider_ReadAccounts(pro, accounts);
+    int count = 0;
+
+    if (rv >= 0 || rv == GWEN_ERROR_NOT_FOUND) {
+        for (account = AB_Account_List_First(accounts); account; account = AB_Account_List_Next(account)) {
+            if (AB_Account_GetUserId(account) == uid) {
+                count++;
+            }
+        }
+        rv = count;
+    }
+    AB_Account_List_free(accounts);
+    return rv;
+}
+
+int ZB_CountAccounts(AB_BANKING *ab, uint32_t uid)
+{
+    AB_PROVIDER *pro;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    rv = countAccounts(pro, uid);
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
 int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid)
 {
     AB_PROVIDER *pro;
@@ -138,11 +171,41 @@ int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid)
     if (!pro) {
         return GWEN_ERROR_NOT_FOUND;
     }
-    rv = AB_Provider_GetUser(pro, uid, 1, 1, &user);
+
+    /* the whole list, whatever UPD version an earlier dialog brought */
+    rv = AB_Provider_GetUser(pro, uid, 1, 0, &user);
+    if (rv >= 0) {
+        AH_User_SetUpdVersion(user, 0);
+        rv = AB_Provider_EndExclUseUser(pro, user, 0);
+        AB_User_free(user);
+        user = NULL;
+    }
+
+    if (rv >= 0) {
+        rv = AB_Provider_GetUser(pro, uid, 1, 1, &user);
+    }
     if (rv >= 0) {
         ctx = AB_ImExporterContext_new();
         rv = AH_Provider_GetAccounts(pro, user, ctx, 1, 0, 1);
         AB_ImExporterContext_free(ctx);
+    }
+    if (rv >= 0) {
+        rv = countAccounts(pro, uid);
+    }
+    if (rv == 0) {
+        /* as "aqhbci-tool4 getaccsepa" does, with the user as the last dialog left
+           it; AqBanking adds the accounts the answer lists. Its failing says no
+           more than the empty list did. */
+        AB_User_free(user);
+        user = NULL;
+        if (AB_Provider_GetUser(pro, uid, 1, 1, &user) >= 0) {
+            ctx = AB_ImExporterContext_new();
+            AH_Provider_GetAccountSepaInfo(pro, user, ctx, 1, 0, 1);
+            AB_ImExporterContext_free(ctx);
+        }
+        rv = countAccounts(pro, uid);
+    }
+    if (user) {
         AB_User_free(user);
     }
     AB_Banking_EndUseProvider(ab, pro);

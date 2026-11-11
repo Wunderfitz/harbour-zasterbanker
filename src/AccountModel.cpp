@@ -83,6 +83,8 @@ QVariant AccountModel::data(const QModelIndex &index, int role) const
     case BankTotalsRole: return bankTotals(account.value(QStringLiteral("bankAccessId")).toUInt());
     case BankTotalCompleteRole: return bankTotalComplete(account.value(QStringLiteral("bankAccessId")).toUInt());
     case IsDepotRole: return account.value(QStringLiteral("isDepot"));
+    // the entry of a bank access without accounts (BankingThread::publishAccounts())
+    case NoAccountsRole: return account.value(QStringLiteral("noAccounts"), false);
     }
     return QVariant();
 }
@@ -121,6 +123,7 @@ QHash<int, QByteArray> AccountModel::roleNames() const
     roles.insert(BankTotalsRole, "bankTotals");
     roles.insert(BankTotalCompleteRole, "bankTotalComplete");
     roles.insert(IsDepotRole, "isDepot");
+    roles.insert(NoAccountsRole, "noAccounts");
     return roles;
 }
 

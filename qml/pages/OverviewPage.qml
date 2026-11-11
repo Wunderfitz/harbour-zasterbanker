@@ -30,15 +30,21 @@ Page {
     allowedOrientations: Orientation.All
 
     property string lastError
+    // what the bank said when retrieving the accounts of an access failed
+    property var bankMessages: []
 
     readonly property bool ready: banking.state === Banking.Ready
-    readonly property bool refreshing: banking.busy && banking.operation === Banking.FetchingBalances
+    readonly property bool refreshing: banking.busy && (banking.operation === Banking.FetchingBalances
+                                                        || banking.operation === Banking.RetrievingAccounts)
 
     Connections {
         target: banking
         onOperationFinished: {
-            if (operation === Banking.FetchingBalances || operation === Banking.RemovingBankAccess) {
+            if (operation === Banking.FetchingBalances || operation === Banking.RemovingBankAccess
+                    || operation === Banking.RetrievingAccounts) {
                 overviewPage.lastError = success ? "" : message
+                overviewPage.bankMessages = !success && operation === Banking.RetrievingAccounts
+                        ? banking.bankMessages : []
             }
         }
     }
@@ -79,6 +85,13 @@ Page {
                 onClicked: banking.retry()
             }
             MenuItem {
+                text: qsTr("Messages from the bank")
+                visible: overviewPage.bankMessages.length > 0
+                onClicked: pageStack.push(Qt.resolvedUrl("BankMessagesPage.qml"), {
+                    messages: overviewPage.bankMessages
+                })
+            }
+            MenuItem {
                 text: qsTr("Add bank access")
                 visible: overviewPage.ready
                 enabled: !banking.busy
@@ -111,8 +124,15 @@ Page {
                 menu: ContextMenu {
                     MenuItem {
                         text: qsTr("Refresh balances")
+                        visible: !noAccounts
                         enabled: !banking.busy
                         onClicked: banking.refreshBankAccess(bankAccessId)
+                    }
+                    MenuItem {
+                        text: qsTr("Retrieve accounts")
+                        visible: noAccounts
+                        enabled: !banking.busy
+                        onClicked: banking.retrieveAccounts(bankAccessId)
                     }
                     MenuItem {
                         text: qsTr("Remove this bank access")
@@ -132,9 +152,28 @@ Page {
                 }
             }
 
+            // A bank access the bank listed no accounts for: it stays reachable.
+            Item {
+                width: parent.width
+                height: noAccountsLabel.height + Theme.paddingLarge
+                visible: noAccounts
+
+                Label {
+                    id: noAccountsLabel
+
+                    x: Theme.horizontalPageMargin
+                    width: parent.width - 2 * Theme.horizontalPageMargin
+                    wrapMode: Text.Wrap
+                    font.pixelSize: Theme.fontSizeSmall
+                    color: Theme.secondaryHighlightColor
+                    text: qsTr("No accounts. Press and hold the bank's name to retrieve them again or to remove the bank access.")
+                }
+            }
+
             ListItem {
                 id: accountItem
 
+                visible: !noAccounts
                 contentHeight: Math.max(accountColumn.height, balanceColumn.height) + 2 * Theme.paddingMedium
                 enabled: !banking.busy
                 onClicked: {
@@ -216,7 +255,7 @@ Page {
 
             BankTotal {
                 width: parent.width
-                visible: accountRow.lastOfBank
+                visible: accountRow.lastOfBank && !noAccounts
                 totals: accountRow.lastOfBank ? bankTotals : []
                 complete: bankTotalComplete
             }

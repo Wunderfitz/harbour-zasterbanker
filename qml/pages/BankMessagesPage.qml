@@ -20,9 +20,10 @@
 import QtQuick 2.2
 import Sailfish.Silica 1.0
 
-// What the bank answered to the last transaction fetch, one result code with its
-// text per line, e.g. "3010 - Keine Umsätze vorhanden. (S)". It explains a list
-// that stays empty, and can be copied to send along with a problem report.
+// What the bank answered to a transaction fetch, a setup or a retrieval of
+// accounts that failed, one result code with its text per line, e.g. "3010 -
+// Keine Umsätze vorhanden. (S)". It explains a list that stays empty, and can be
+// copied to send along with a problem report.
 //
 // The texts are the bank's, so they are Text.PlainText: Silica's default would
 // render markup.

@@ -64,12 +64,14 @@ been tried:
 | **GLS Gemeinschaftsbank** (Atruvia data centre) | not recorded | Setting up the bank access, with its accounts and balances. |
 | **EthikBank** (Atruvia data centre) | not recorded | Reported by testers: the current features work. |
 | **DKB** (Deutsche Kreditbank, own server) | not recorded | Reported by testers: the current features work. |
+| **Sparkasse** (Finanz Informatik) | not recorded | Reported by a tester: setup went through, but no account was shown. The next version asks the bank for the accounts in a second way, and otherwise shows what the bank said. |
 | **comdirect** (own server) | not recorded | Reported by a tester: setup and balances work. Transactions did not show up: the bank rejected the account in the request, which the next version changes. |
 | **Deutsche Bank**, **Postbank** | BestSign | Reported by testers: works once the name of the BestSign device is entered at setup. Transactions of a Postbank credit card failed, which the next version fixes. |
 
 Three are cooperative banks run by the same data centre, Atruvia; the DKB, comdirect,
-Deutsche Bank and Postbank run FinTS servers of their own. Sparkassen, other private banks and other data centres have not been
-tried yet, and photoTAN is the only TAN method known to have been used. A report on how the app fares with your bank is welcome, in the
+Deutsche Bank and Postbank run FinTS servers of their own, and the Sparkassen share the
+Finanz Informatik's. Other private banks and other data centres have not been tried yet,
+and photoTAN and BestSign are the only TAN methods known to have been used. A report on how the app fares with your bank is welcome, in the
 [Telegram group](https://t.me/+K3rZ4wtYd7NjMWMy) or as described in
 [Reporting a problem](#reporting-a-problem).
 
@@ -313,7 +315,11 @@ Setting up is one command on the banking thread, so the PIN is entered once:
    its answer the bank reports which TAN methods it allows this user.
 3. **The TAN method**: chosen by the user if there is more than one, set without asking
    if there is one, and none at all if the bank needs no two-step TAN.
-4. **The accounts**: the account list, which AqBanking adds to its store.
+4. **The accounts**: the account list, which AqBanking adds to its store. The app asks
+   for the whole list, whatever version of it AqBanking has, and if it holds no
+   account, for the accounts' SEPA details, from which AqBanking adds them as well. A
+   bank access that still has no account is not set up; the bank's messages can be
+   read then.
 5. **The balances** of the new bank access's accounts only, so no other bank is
    contacted and no other PIN asked for. Balances that do not come are no reason to
    undo the setup.

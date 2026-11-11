@@ -72,7 +72,8 @@ public:
         RemovingBankAccess = BankingThread::RemoveBankAccess,
         ResettingData = BankingThread::ResetData,
         FetchingTransactions = BankingThread::FetchTransactions,
-        FetchingHoldings = BankingThread::FetchHoldings
+        FetchingHoldings = BankingThread::FetchHoldings,
+        RetrievingAccounts = BankingThread::RetrieveAccounts
     };
     Q_ENUM(Operation)
 
@@ -106,6 +107,8 @@ public:
     Q_INVOKABLE void fetchTransactions(int accountId);
     Q_INVOKABLE void fetchHoldings(int accountId);
     Q_INVOKABLE void removeBankAccess(int bankAccessId);
+    /** For a bank access without accounts: asks the bank for them again. */
+    Q_INVOKABLE void retrieveAccounts(int bankAccessId);
     Q_INVOKABLE void respond(int interactionId, bool accepted, const QString &text, int choice);
     /** Aborts whatever the bank is waiting for: the running operation fails as cancelled. */
     Q_INVOKABLE void cancel();

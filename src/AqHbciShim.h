@@ -71,8 +71,19 @@ int ZB_AddPinTanUser(AB_BANKING *ab, const char *bankCode, const char *userId, c
 /* Checks the server's certificate and fetches the system ID: the handshake. */
 int ZB_GetSysId(AB_BANKING *ab, uint32_t uid);
 
-/* Fetches the accounts the bank lists for the user and adds them to AqBanking. */
+/*
+ * Fetches the accounts the bank lists for the user and adds them to AqBanking,
+ * and returns how many accounts the user has then (or an error).
+ * - It asks for the whole account list (UPD version 0): AqBanking sends the UPD
+ *   version it has, and a bank that thinks it current sends no accounts.
+ * - If the list holds no accounts, it asks for the accounts' SEPA details
+ *   (HKSPA, as "aqhbci-tool4 getaccsepa" and python-fints do), from whose
+ *   answer AqBanking adds accounts as well; that request failing is no error.
+ */
 int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid);
+
+/* How many accounts AqBanking has for the user. */
+int ZB_CountAccounts(AB_BANKING *ab, uint32_t uid);
 
 int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int maxMethods);
 int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId);

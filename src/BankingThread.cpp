@@ -155,6 +155,14 @@ void BankingThread::fetchHoldings(uint accountId)
     enqueue(command);
 }
 
+void BankingThread::retrieveAccounts(uint bankAccessId)
+{
+    Command command;
+    command.type = RetrieveAccounts;
+    command.arguments.insert(QStringLiteral("bankAccessId"), bankAccessId);
+    enqueue(command);
+}
+
 void BankingThread::removeBankAccess(uint bankAccessId)
 {
     Command command;
@@ -350,6 +358,9 @@ void BankingThread::run()
         case RemoveBankAccess:
             executeRemoveBankAccess(command);
             break;
+        case RetrieveAccounts:
+            executeRetrieveAccounts(command);
+            break;
         case ResetData:
             executeResetData();
             break;
@@ -417,6 +428,9 @@ void BankingThread::executeAddBankAccess(const Command &command)
     }
 
     const QVariantMap &arguments = command.arguments;
+    // Every step's result lines, so that a setup that ends without accounts can
+    // show what the bank said.
+    startCollectingBankMessages();
     uint32_t uid = 0;
     int rv = ZB_AddPinTanUser(banking,
                               arguments.value(QStringLiteral("bankCode")).toString().toUtf8().constData(),
@@ -426,6 +440,7 @@ void BankingThread::executeAddBankAccess(const Command &command)
                               arguments.value(QStringLiteral("bankName")).toString().toUtf8().constData(),
                               &uid);
     if (rv < 0) {
+        reportBankMessages();
         emit commandFinished(AddBankAccess, false, failureMessage(rv, tr("The bank access could not be created.")));
         return;
     }
@@ -436,6 +451,7 @@ void BankingThread::executeAddBankAccess(const Command &command)
     if (rv < 0) {
         const QString message = failureMessage(rv, tr("The bank did not accept the connection."));
         ZB_DeleteUser(banking, uid);
+        reportBankMessages();
         emit commandFinished(AddBankAccess, false, message);
         return;
     }
@@ -443,15 +459,20 @@ void BankingThread::executeAddBankAccess(const Command &command)
     if (!chooseTanMethod(uid)) {
         const QString message = failureMessage(GWEN_ERROR_USER_ABORTED, QString());
         ZB_DeleteUser(banking, uid);
+        reportBankMessages();
         emit commandFinished(AddBankAccess, false, message);
         return;
     }
 
     reportProgress(tr("Retrieving your accounts..."));
     rv = ZB_GetAccounts(banking, uid);
-    if (rv < 0) {
-        const QString message = failureMessage(rv, tr("The bank did not list your accounts."));
+    // A bank access without accounts would be of no use (found 2026-11-11 at a
+    // Sparkasse: the setup went through, and no account came).
+    if (rv <= 0) {
+        const QString message = rv < 0 ? failureMessage(rv, tr("The bank did not list your accounts."))
+                                        : tr("The bank listed no accounts for this access.");
         ZB_DeleteUser(banking, uid);
+        reportBankMessages();
         emit commandFinished(AddBankAccess, false, message);
         return;
     }
@@ -462,6 +483,7 @@ void BankingThread::executeAddBankAccess(const Command &command)
     // Balances that do not come are no reason to undo the setup.
     QString balanceError;
     retrieveBalances(&balanceError, true, uid);
+    reportBankMessages();
     emit commandFinished(AddBankAccess, true, QString());
 }
 
@@ -633,8 +655,7 @@ void BankingThread::executeFetchTransactions(const Command &command)
         publishAccounts();
     }
     lastError.clear();
-    bankMessages.clear();
-    collectingBankMessages = true;
+    startCollectingBankMessages();
 
     QVariantList transactions;
     bool hasAnswer = false;
@@ -644,9 +665,8 @@ void BankingThread::executeFetchTransactions(const Command &command)
     // reports an error: without transactions, that is not "no transactions".
     bool success = rv >= 0 && hasAnswer && !jobFailed && (!transactions.isEmpty() || lastError.isEmpty());
 
-    collectingBankMessages = false;
     // Before the result, so that the page has them when it learns the outcome.
-    emit bankMessagesReported(bankMessages);
+    reportBankMessages();
     if (success) {
         emit transactionsFetched(accountId, transactions);
     }
@@ -744,6 +764,46 @@ void BankingThread::executeFetchHoldings(const Command &command)
     emit commandFinished(FetchHoldings, success, message);
 }
 
+// For a bank access that has no accounts: the setup of one that brought none
+// fails, but one set up before that rule, or whose bank listed none later, is
+// shown without them, with this to try again.
+void BankingThread::executeRetrieveAccounts(const Command &command)
+{
+    emit commandStarted(RetrieveAccounts);
+    if (!banking) {
+        emit commandFinished(RetrieveAccounts, false, tr("Banking is not available."));
+        return;
+    }
+    const uint32_t uid = command.arguments.value(QStringLiteral("bankAccessId")).toUInt();
+    startCollectingBankMessages();
+    reportProgress(tr("Retrieving your accounts..."));
+    lastError.clear();
+    const int rv = ZB_GetAccounts(banking, uid);
+    publishAccounts();
+    QString message;
+    if (rv > 0) {
+        QString balanceError;
+        retrieveBalances(&balanceError, true, uid);
+    } else {
+        message = rv < 0 ? failureMessage(rv, tr("The bank did not list your accounts."))
+                         : tr("The bank listed no accounts for this access.");
+    }
+    reportBankMessages();
+    emit commandFinished(RetrieveAccounts, rv > 0, message);
+}
+
+void BankingThread::startCollectingBankMessages()
+{
+    bankMessages.clear();
+    collectingBankMessages = true;
+}
+
+void BankingThread::reportBankMessages()
+{
+    collectingBankMessages = false;
+    emit bankMessagesReported(bankMessages);
+}
+
 void BankingThread::executeRemoveBankAccess(const Command &command)
 {
     emit commandStarted(RemoveBankAccess);
@@ -803,6 +863,23 @@ void BankingThread::publishAccounts()
             accounts.append(account);
         }
         AB_AccountSpec_List_free(specs);
+    }
+    // A bank access without accounts as an entry of its own (accountId 0), so
+    // that the overview shows it, to retrieve them again or to remove it.
+    QSet<uint> withAccounts;
+    for (const QVariant &account : accounts) {
+        withAccounts.insert(account.toMap().value(QStringLiteral("bankAccessId")).toUInt());
+    }
+    for (auto user = users.constBegin(); user != users.constEnd(); ++user) {
+        if (!withAccounts.contains(user.key())) {
+            QVariantMap placeholder;
+            placeholder.insert(QStringLiteral("accountId"), 0u);
+            placeholder.insert(QStringLiteral("bankAccessId"), user.key());
+            placeholder.insert(QStringLiteral("bankName"), QString::fromUtf8(user.value().userName));
+            placeholder.insert(QStringLiteral("bankCode"), QString::fromUtf8(user.value().bankCode));
+            placeholder.insert(QStringLiteral("noAccounts"), true);
+            accounts.append(placeholder);
+        }
     }
     emit accountsChanged(accounts);
 

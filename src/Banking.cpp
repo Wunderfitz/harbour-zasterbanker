@@ -148,6 +148,13 @@ void Banking::fetchHoldings(int accountId)
     }
 }
 
+void Banking::retrieveAccounts(int bankAccessId)
+{
+    if (currentState == Ready && !busy()) {
+        thread.retrieveAccounts(static_cast<uint>(bankAccessId));
+    }
+}
+
 void Banking::removeBankAccess(int bankAccessId)
 {
     if (currentState == Ready && !busy()) {

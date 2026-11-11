@@ -33,6 +33,8 @@ Page {
     property bool finished: false
     property bool succeeded: false
     property string resultText
+    // what the bank said during a setup that failed, for a problem report
+    property var bankMessages: []
 
     function close() {
         pageStack.pop(pageStack.find(function(page) { return page.objectName === "overviewPage" }))
@@ -47,6 +49,7 @@ Page {
             setupPage.finished = true
             setupPage.succeeded = success
             setupPage.resultText = success ? qsTr("Your bank access is set up.") : message
+            setupPage.bankMessages = success ? [] : banking.bankMessages
         }
     }
 
@@ -80,6 +83,16 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.highlightColor
                 text: setupPage.finished ? setupPage.resultText : banking.progressText
+            }
+
+            Button {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: setupPage.bankMessages.length > 0
+                text: qsTr("Messages from the bank")
+                onClicked: pageStack.push(Qt.resolvedUrl("BankMessagesPage.qml"), {
+                    accountName: setupPage.bankName,
+                    messages: setupPage.bankMessages
+                })
             }
 
             Button {

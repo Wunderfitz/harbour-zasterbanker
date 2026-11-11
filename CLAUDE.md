@@ -261,6 +261,24 @@ than one → ask for the name of the TAN medium if the bank requires one for
 that method → fetch the account list → fetch the balances. If any step but the
 last fails, the half-made user is deleted again: nothing is left behind.
 
+- **No accounts is a failure** (decided 2026-11-11, after a Sparkasse tester's
+  setup went through and showed no account, with no further details).
+  `AH_Provider_GetAccounts()` succeeds whether or not the bank listed accounts,
+  and a bank access without them was invisible in the overview, so it could not
+  even be removed. `ZB_GetAccounts()` now (a) asks for the whole account list,
+  with UPD version 0: AqBanking sends the version it has, which any earlier
+  dialog may have set, and a bank that thinks it current sends no accounts;
+  (b) if the list still holds none, asks for the accounts' SEPA details
+  (`HKSPA`, as `aqhbci-tool4 getaccsepa` and python-fints do; python-fints
+  lists Sparkassen as tested), from whose answer AqBanking adds accounts too,
+  though without the UPD's list of jobs, so their balances may only come once
+  a later dialog brings the UPD; and returns the number of accounts. (c) With
+  none, setup fails with "The bank listed no accounts for this access",
+  deletes the user, and offers the bank's messages of the whole setup on its
+  page, as the transactions page does. Why that Sparkasse sent none is not
+  known; guesses were the UPD version, a confirmation the bank wanted first
+  (PSD2), or the login name rather than the Legitimations-ID.
+
 - **The TAN medium name** (added 2026-11-09 for Deutsche Bank and Postbank,
   whose BestSign failed without it, and works with it since; see
   [Verification status](#verification-status)).
@@ -279,6 +297,16 @@ last fails, the half-made user is deleted again: nothing is left behind.
   setting the access up again.
 
 ### Overview page
+
+- **A bank access without accounts is shown** (2026-11-11, see
+  [Setting up a bank access](#setting-up-a-bank-access)): `publishAccounts()`
+  lists it as an entry of its own (`accountId` 0, role `noAccounts`), which
+  shows the bank's name, a hint instead of an account, and no total, and stays
+  off the cover. Its name's menu has "Retrieve accounts" (`RetrieveAccounts`,
+  `ZB_GetAccounts()` again, then its balances) instead of "Refresh balances",
+  and "Remove this bank access". If retrieving fails, the pull-down menu has
+  the bank's messages. This also reaches accesses set up before setup failed
+  on no accounts.
 
 - **Sections are bank accesses**, keyed by `bankAccessId` rather than the bank
   name: two accesses at the same bank stay apart. There is **no section delegate**:
@@ -673,8 +701,9 @@ checked on every push.
   account AqBanking's (patched) CAMT job names (IBAN and BIC; account number
   and bank code without IBAN), the CAMT flag it sets and clears, the PIN as
   AqBanking's message engine writes it into the signature (`HNSHA`: escaped,
-  ISO 8859-1, and UTF-8 umlauts over the 35 bytes failing as on the phone), the
-  models, and the bank search on the made-up list.
+  ISO 8859-1, and UTF-8 umlauts over the 35 bytes failing as on the phone),
+  the accounts it counts per user, the models (a bank access without accounts
+  included), and the bank search on the made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from the i486
   build directory, whose binaries run natively; it installs AqBanking's data
@@ -907,6 +936,17 @@ project unless the owner says so.
   (not handed out); it was replaced by the AqBanking patch that has the CAMT
   request name the account by IBAN and BIC only (see
   [Transactions](#transactions)). Its result at comdirect is awaited.
+- 2026-11-11, tester: **Sparkasse: setup went through, no account shown**, no
+  logs. See [Setting up a bank access](#setting-up-a-bank-access) for what the
+  test build `0.5.0-0.202611112102` does (it also carries the comdirect,
+  Postbank credit card, PIN encoding and key dialog changes of the day): whole account list, `HKSPA` if none, a clear failure with
+  the bank's messages otherwise. The tester is to be asked for those, the login
+  used (login name or Legitimations-ID) and the TAN method.
+- 2026-11-11, emulator (5.1), sample data patched into the QML, real touch
+  input: a bank access without accounts shows its name and the hint, its menu
+  has "Retrieve accounts" and "Remove this bank access", an ordinary bank's
+  still "Refresh balances". Not seen: the setup's failure with the bank's
+  messages, and retrieving accounts (both need a bank).
 - 2026-11-11, tester: **a PIN with special characters fails with "Unable to
   encode"** (characters from `äöüÄÖÜß!$%&/()=?+#,.-:`). AqBanking reports that
   when it cannot build the message; the engine tests reproduce it for umlauts
