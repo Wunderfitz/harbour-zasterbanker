@@ -128,9 +128,9 @@
 <context>
     <name>Banking</name>
     <message>
-        <location filename="../src/Banking.cpp" line="197"/>
-        <source>The key could not be removed from Sailfish Secrets.</source>
-        <translation>Der Schlüssel konnte nicht aus Sailfish Secrets entfernt werden.</translation>
+        <location filename="../src/Banking.cpp" line="206"/>
+        <source>Your data was deleted, but its key could not be removed from Sailfish Secrets: %1</source>
+        <translation>Ihre Daten wurden gelöscht, aber ihr Schlüssel konnte nicht aus Sailfish Secrets entfernt werden: %1</translation>
     </message>
 </context>
 <context>
@@ -425,18 +425,28 @@
     </message>
     <message>
         <location filename="../src/KeyStore.cpp" line="146"/>
+        <source>After every restart of the device, Sailfish OS asks whether Zaster Banker may read the key to your stored data. This time it was not confirmed (%1).</source>
+        <translation>Nach jedem Neustart des Geräts fragt Sailfish OS, ob Zaster Banker den Schlüssel zu Ihren gespeicherten Daten lesen darf. Diesmal wurde das nicht bestätigt (%1).</translation>
+    </message>
+    <message>
+        <location filename="../src/KeyStore.cpp" line="149"/>
         <source>The key to your stored data could not be read: %1</source>
         <translation>Der Schlüssel zu Ihren gespeicherten Daten konnte nicht gelesen werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/KeyStore.cpp" line="152"/>
+        <location filename="../src/KeyStore.cpp" line="155"/>
         <source>The key store could not be created: %1</source>
         <translation>Der Schlüsselspeicher konnte nicht angelegt werden: %1</translation>
     </message>
     <message>
-        <location filename="../src/KeyStore.cpp" line="161"/>
+        <location filename="../src/KeyStore.cpp" line="164"/>
         <source>The key could not be stored: %1</source>
         <translation>Der Schlüssel konnte nicht gespeichert werden: %1</translation>
+    </message>
+    <message>
+        <location filename="../src/KeyStore.cpp" line="179"/>
+        <source>Sailfish OS asks to confirm the removal of the key, and it was not confirmed (%1).</source>
+        <translation>Sailfish OS fragt nach einer Bestätigung, bevor der Schlüssel entfernt wird, und sie wurde nicht gegeben (%1).</translation>
     </message>
 </context>
 <context>
@@ -466,57 +476,67 @@
     </message>
     <message>
         <location filename="../qml/pages/OverviewPage.qml" line="76"/>
+        <source>Try again</source>
+        <translation>Erneut versuchen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/OverviewPage.qml" line="82"/>
         <source>Add bank access</source>
         <translation>Bankzugang hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="82"/>
-        <location filename="../qml/pages/OverviewPage.qml" line="107"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="88"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="113"/>
         <source>Refresh balances</source>
         <translation>Kontostände aktualisieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="112"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="118"/>
         <source>Remove this bank access</source>
         <translation>Diesen Bankzugang entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="116"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="122"/>
         <source>Removing %1</source>
         <translation>Entferne %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="170"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="176"/>
         <source>Account %1</source>
         <translation>Konto %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="221"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
         <source>No bank access yet</source>
         <translation>Noch kein Bankzugang</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="222"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="228"/>
         <source>Pull down to add your bank</source>
         <translation>Herunterziehen, um Ihre Bank hinzuzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="233"/>
         <source>Stored data unreadable</source>
         <translation>Gespeicherte Daten unlesbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="233"/>
         <source>Banking unavailable</source>
         <translation>Banking nicht verfügbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="229"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="235"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation>Herunterziehen, um alle Daten zu löschen und neu zu beginnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="251"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="236"/>
+        <source>Pull down to try again, or to delete all data and start afresh.</source>
+        <translation>Herunterziehen, um es erneut zu versuchen oder um alle Daten zu löschen und neu zu beginnen.</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/OverviewPage.qml" line="258"/>
         <source>Unlocking your data...</source>
         <translation>Entsperre Ihre Daten...</translation>
     </message>

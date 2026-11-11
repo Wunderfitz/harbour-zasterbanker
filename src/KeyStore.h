@@ -29,6 +29,7 @@
 namespace Sailfish {
 namespace Secrets {
 class Request;
+class Result;
 }
 }
 
@@ -42,6 +43,11 @@ class Request;
  *
  * The daemon is talked to asynchronously, on the UI thread, which is fine as
  * every step is a short D-Bus round trip that never blocks the event loop.
+ *
+ * The collection is locked again whenever the daemon restarts, i.e. after every
+ * reboot. Reading the key, or deleting the collection, then makes Sailfish OS ask
+ * the user to confirm, with the security code if the device has one. Anything
+ * but a confirmation fails the request.
  */
 class KeyStore : public QObject
 {
@@ -57,13 +63,16 @@ public:
      */
     void requestKey(bool dataExists);
 
-    /** Removes the key and its collection, which makes the stored data unreadable for good. */
+    /**
+     * Removes the key and its collection, which makes the stored data unreadable for good.
+     * If the collection is locked, Sailfish OS asks the user to confirm first.
+     */
     void deleteKey();
 
 signals:
     void keyAvailable(const QByteArray &key);
     void keyFailed(const QString &message, bool keyMissing);
-    void keyDeleted(bool success);
+    void keyDeleted(bool success, const QString &message);
 
 private:
     enum Step {
@@ -79,6 +88,7 @@ private:
     void handleFinished();
     void createKey();
     void fail(const QString &message, bool keyMissing = false);
+    static bool notConfirmed(const Sailfish::Secrets::Result &result);
 
     Sailfish::Secrets::SecretManager secretManager;
     Sailfish::Secrets::Request *pendingRequest;

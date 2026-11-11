@@ -174,6 +174,14 @@ void Banking::resetAllData()
     thread.resetData();
 }
 
+void Banking::retry()
+{
+    if (currentState != Failed || busy()) {
+        return;
+    }
+    startUp();
+}
+
 void Banking::startUp()
 {
     setState(Starting);
@@ -191,10 +199,11 @@ void Banking::handleKeyFailed(const QString &message, bool keyMissing)
     setState(keyMissing ? DataUnreadable : Failed, message);
 }
 
-void Banking::handleKeyDeleted(bool success)
+void Banking::handleKeyDeleted(bool success, const QString &message)
 {
+    // The data is gone by now. Trying again uses the old key, if it can be read.
     if (!success) {
-        setState(Failed, tr("The key could not be removed from Sailfish Secrets."));
+        setState(Failed, tr("Your data was deleted, but its key could not be removed from Sailfish Secrets: %1").arg(message));
         return;
     }
     startUp();

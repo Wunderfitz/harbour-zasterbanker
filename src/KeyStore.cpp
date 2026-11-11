@@ -142,6 +142,9 @@ void KeyStore::handleFinished()
             createKey();
         } else if (succeeded) {
             fail(tr("The key to your stored data is damaged."), true);
+        } else if (notConfirmed(result)) {
+            fail(tr("After every restart of the device, Sailfish OS asks whether Zaster Banker may read the "
+                    "key to your stored data. This time it was not confirmed (%1).").arg(result.errorMessage()));
         } else {
             fail(tr("The key to your stored data could not be read: %1").arg(result.errorMessage()));
         }
@@ -170,7 +173,14 @@ void KeyStore::handleFinished()
         break;
     case DeletingCollection:
         step = Idle;
-        emit keyDeleted(succeeded || result.errorCode() == Result::InvalidCollectionError);
+        if (succeeded || result.errorCode() == Result::InvalidCollectionError) {
+            emit keyDeleted(true, QString());
+        } else if (notConfirmed(result)) {
+            emit keyDeleted(false, tr("Sailfish OS asks to confirm the removal of the key, and it was not "
+                                      "confirmed (%1).").arg(result.errorMessage()));
+        } else {
+            emit keyDeleted(false, result.errorMessage());
+        }
         break;
     case Idle:
         break;
@@ -191,6 +201,21 @@ void KeyStore::createKey()
     store->setUserInteractionMode(SecretManager::SystemInteraction);
     store->setSecret(secret);
     startStep(StoringKey, store);
+}
+
+// The ways Sailfish OS's request to the user ends without a confirmation: cancelled,
+// a wrong security code or polkit refusing otherwise, no answer in time.
+bool KeyStore::notConfirmed(const Result &result)
+{
+    switch (result.errorCode()) {
+    case Result::InteractionViewUserCanceledError:
+    case Result::IncorrectAuthenticationCodeError:
+    case Result::AuthenticationTimeoutError:
+    case Result::InteractionViewError:
+        return true;
+    default:
+        return false;
+    }
 }
 
 void KeyStore::fail(const QString &message, bool keyMissing)

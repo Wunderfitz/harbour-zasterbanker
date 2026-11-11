@@ -111,6 +111,8 @@ public:
     Q_INVOKABLE void cancel();
     /** Deletes all stored data and the key. Also the way out when the data cannot be decrypted. */
     Q_INVOKABLE void resetAllData();
+    /** Starts again after banking failed to start, e.g. when the key could not be read. */
+    Q_INVOKABLE void retry();
 
 signals:
     void stateChanged();
@@ -125,7 +127,7 @@ signals:
 private slots:
     void handleKeyAvailable(const QByteArray &key);
     void handleKeyFailed(const QString &message, bool keyMissing);
-    void handleKeyDeleted(bool success);
+    void handleKeyDeleted(bool success, const QString &message);
     void handleInitialized(int result, const QString &message);
     void handleCommandStarted(int command);
     void handleCommandFinished(int command, bool success, const QString &message);

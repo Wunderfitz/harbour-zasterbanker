@@ -128,8 +128,8 @@
 <context>
     <name>Banking</name>
     <message>
-        <location filename="../src/Banking.cpp" line="197"/>
-        <source>The key could not be removed from Sailfish Secrets.</source>
+        <location filename="../src/Banking.cpp" line="206"/>
+        <source>Your data was deleted, but its key could not be removed from Sailfish Secrets: %1</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -425,17 +425,27 @@
     </message>
     <message>
         <location filename="../src/KeyStore.cpp" line="146"/>
+        <source>After every restart of the device, Sailfish OS asks whether Zaster Banker may read the key to your stored data. This time it was not confirmed (%1).</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/KeyStore.cpp" line="149"/>
         <source>The key to your stored data could not be read: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/KeyStore.cpp" line="152"/>
+        <location filename="../src/KeyStore.cpp" line="155"/>
         <source>The key store could not be created: %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/KeyStore.cpp" line="161"/>
+        <location filename="../src/KeyStore.cpp" line="164"/>
         <source>The key could not be stored: %1</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/KeyStore.cpp" line="179"/>
+        <source>Sailfish OS asks to confirm the removal of the key, and it was not confirmed (%1).</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
@@ -466,57 +476,67 @@
     </message>
     <message>
         <location filename="../qml/pages/OverviewPage.qml" line="76"/>
-        <source>Add bank access</source>
+        <source>Try again</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../qml/pages/OverviewPage.qml" line="82"/>
-        <location filename="../qml/pages/OverviewPage.qml" line="107"/>
+        <source>Add bank access</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/OverviewPage.qml" line="88"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="113"/>
         <source>Refresh balances</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="112"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="118"/>
         <source>Remove this bank access</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="116"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="122"/>
         <source>Removing %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="170"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="176"/>
         <source>Account %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="221"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
         <source>No bank access yet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="222"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="228"/>
         <source>Pull down to add your bank</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="233"/>
         <source>Stored data unreadable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="233"/>
         <source>Banking unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="229"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="235"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="251"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="236"/>
+        <source>Pull down to try again, or to delete all data and start afresh.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/OverviewPage.qml" line="258"/>
         <source>Unlocking your data...</source>
         <translation type="unfinished"></translation>
     </message>

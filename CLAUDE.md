@@ -432,6 +432,26 @@ the transactions page, which a depot has no use for.
   It never touches the file system. A key that cannot be found while
   encrypted data exists is reported, never silently replaced; the way out is
   "Delete all data" on the main page, which removes data and key.
+- **Sailfish OS asks the user before the app may read its key, once after every
+  restart** (found 2026-11-11, after a tester got stuck at "Banking nicht
+  verfügbar ... Password Agent was unable to verify the authenticity of the
+  user"). The secrets daemon locks a device-lock collection whenever it
+  restarts, i.e. at every reboot, and then reading from it, or deleting it,
+  needs the user's confirmation through polkit (`auth_self`): the system dialog
+  "harbour-zasterbanker wants to retrieve secret DataKey from collection
+  ZasterBanker", with the security code if the device has one (only Confirm and
+  Cancel on the emulator, which has none). Afterwards the collection stays
+  unlocked until the next restart. Anything but a confirmation fails the
+  request: Cancel ("The user canceled..."), no answer within 2 minutes ("Did not
+  receive a reply..."), and, from the daemon's code, a refusal by polkit, which
+  is the tester's message (presumably a mistyped code or failed fingerprint; not
+  reproducible without a security code). So that is never a dead end: in that
+  state (`Failed`), the main page's pull-down menu has **"Try again"**, which
+  asks again and keeps the data, and **"Delete all data"**, for a clean start.
+  `KeyStore` explains the request in its message when it was not confirmed.
+  Deleting all data removes the data file first, then the collection, which
+  brings the same dialog; if that is not confirmed, the data is gone, the
+  message says so, and "Try again" reuses the old key for the empty store.
 - **The PIN is never stored, but kept in memory for 5 minutes** (project
   owner's decision, 2026-11-07: entering it for every action was too
   annoying). `GwenGui` remembers it per bank access, by AqBanking's token
@@ -726,8 +746,20 @@ project unless the owner says so.
 - 2026-11-05, emulator (5.1): the app stops at "Banking nicht verfügbar", with
   "Password Agent was unable to verify the authenticity of the user" from
   Sailfish Secrets, also on an unmodified page. It got past that on 2026-11-03
-  and the phone is not affected. Not looked into yet. UI checks on the emulator
-  ran on sample data patched into the QML.
+  and the phone is not affected. UI checks on the emulator ran on sample data
+  patched into the QML. Explained on 2026-11-11: after the emulator's restart,
+  Sailfish OS asked whether the app may read its key, and nobody confirmed (see
+  [Data protection](#data-protection)).
+- 2026-11-11, emulator (5.1), real touch input, the app started from its icon
+  and over SSH: after the secrets daemon's restart, the system dialog asks for
+  the key; Cancel ends in "Banking unavailable" with the new explanation and a
+  pull-down menu with "Delete all data" and "Try again". "Try again" asks
+  again, and Confirm opens the overview with the stored data. "Delete all
+  data" removes the data file and asks to delete the collection: cancelled,
+  the message says the data is gone, and the next "Delete all data" with
+  Confirm starts afresh with a new key and a new 211-byte store. The German
+  texts were not seen (the emulator runs in English), nor the dialog with a
+  security code.
 - 2026-11-05, emulator (5.1): AqBanking's real parser with the installed
   profiles read sample MT940, MT942 and CAMT 052.001.02 and .08 statements into
   `TransactionModel` correctly; `ZB_PreferCamtDownload()` (now
@@ -857,7 +889,8 @@ project unless the owner says so.
   TAN methods and medium; the setup dialog for the medium was not seen.
 - Not verified yet: Sparkassen and other data centres or private banks besides
   the DKB, the other TAN methods (as far as is known), removing a bank access,
-  and the reset after an unreadable store.
+  and the reset after an unreadable store (`DataUnreadable`; the reset after a
+  key that could not be read was checked on the emulator).
 
 ## Roadmap
 

@@ -69,8 +69,14 @@ Page {
             }
             MenuItem {
                 text: qsTr("Delete all data")
-                visible: banking.state === Banking.DataUnreadable
+                visible: banking.state === Banking.DataUnreadable || banking.state === Banking.Failed
                 onClicked: remorse.execute(qsTr("Deleting all data"), function() { banking.resetAllData() })
+            }
+            MenuItem {
+                text: qsTr("Try again")
+                visible: banking.state === Banking.Failed
+                enabled: !banking.busy
+                onClicked: banking.retry()
             }
             MenuItem {
                 text: qsTr("Add bank access")
@@ -225,8 +231,9 @@ Page {
         ViewPlaceholder {
             enabled: banking.state === Banking.DataUnreadable || banking.state === Banking.Failed
             text: banking.state === Banking.DataUnreadable ? qsTr("Stored data unreadable") : qsTr("Banking unavailable")
-            hintText: banking.stateMessage + (banking.state === Banking.DataUnreadable
-                                              ? "\n" + qsTr("Pull down to delete all data and start afresh.") : "")
+            hintText: banking.stateMessage + "\n" + (banking.state === Banking.DataUnreadable
+                                                     ? qsTr("Pull down to delete all data and start afresh.")
+                                                     : qsTr("Pull down to try again, or to delete all data and start afresh."))
         }
 
         VerticalScrollDecorator {}
