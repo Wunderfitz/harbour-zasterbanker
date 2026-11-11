@@ -526,7 +526,13 @@ bool BankingThread::chooseTanMedium(uint32_t userUid)
             hint = tr("The name can have up to %1 characters.").arg(MAX_TAN_MEDIUM_LENGTH) + QLatin1Char(' ');
             continue;
         }
-        const int rv = ZB_SetTanMediumId(banking, userUid, name.toUtf8().constData());
+        // AqBanking sends it as stored, and FinTS messages are ISO 8859-1.
+        const QByteArray latin1 = name.toLatin1();
+        if (QString::fromLatin1(latin1) != name) {
+            hint = tr("The name contains a character that cannot be sent to the bank.") + QLatin1Char(' ');
+            continue;
+        }
+        const int rv = ZB_SetTanMediumId(banking, userUid, latin1.constData());
         if (rv < 0) {
             qWarning() << "Setting the TAN medium failed" << rv;
             return false;

@@ -67,6 +67,29 @@ void wipe(QByteArray &data)
     data.clear();
 }
 
+// FinTS messages are ISO 8859-1, and AqBanking puts PIN and TAN into them as it
+// gets them. The dialog's text arrives as UTF-8, where an umlaut or "ß" is two
+// bytes: the bank would see a different PIN, and a long one would no longer fit
+// the field (AqBanking then fails with "Unable to encode"). Converts the text in
+// place; false, with the text wiped, if it has a character ISO 8859-1 lacks.
+bool toLatin1(QByteArray &text)
+{
+    QString decoded = QString::fromUtf8(text);
+    bool representable = true;
+    for (const QChar c : decoded) {
+        if (c.unicode() > 0xff) {
+            representable = false;
+            break;
+        }
+    }
+    wipe(text);
+    if (representable) {
+        text = decoded.toLatin1();
+    }
+    decoded.fill(QChar(0));
+    return representable;
+}
+
 /*
  * Milliseconds since boot, including the time the device spent suspended:
  * five minutes with the screen off count as five minutes. QElapsedTimer and
@@ -178,6 +201,11 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
                 plainText(title), isTan ? styledText(text) : plainText(text), QStringList(), image, mimeType);
     if (!response.accepted) {
         return GWEN_ERROR_USER_ABORTED;
+    }
+    if (!toLatin1(response.text)) {
+        bankingThread->reportError(isTan ? QCoreApplication::translate("GwenGui", "The TAN contains a character that cannot be sent to the bank.")
+                                         : QCoreApplication::translate("GwenGui", "The PIN contains a character that cannot be sent to the bank."));
+        return GWEN_ERROR_INVALID;
     }
     if (response.text.size() < minLen || response.text.size() >= maxLen) {
         wipe(response.text);

@@ -33,6 +33,7 @@
 
 #include <aqbanking/banking.h>
 #include <gwenhywfar/db.h>
+#include <gwenhywfar/msgengine.h>
 #include <gwenhywfar/pathmanager.h>
 
 extern "C" {
@@ -211,6 +212,35 @@ QStringList camtAccountArguments(AB_BANKING *banking, uint32_t uid, uint32_t acc
     return result;
 }
 
+// The signature's end (HNSHA) with the PIN, as AqBanking's message engine
+// writes it into a PIN/TAN message (msgcrypt_pintan_sign.c), or the error.
+QByteArray signatureWithPin(AB_BANKING *banking, uint32_t uid, const QByteArray &pin)
+{
+    useInstalledDefinitions();
+    AB_PROVIDER *provider = AB_Banking_BeginUseProvider(banking, BACKEND);
+    AB_USER *user = nullptr;
+    QByteArray result("(no user)");
+    if (AB_Provider_GetUser(provider, uid, 1, 1, &user) >= 0) {
+        GWEN_MSGENGINE *engine = AH_User_GetMsgEngine(user);
+        GWEN_MsgEngine_SetProtocolVersion(engine, 300);
+        GWEN_MsgEngine_SetMode(engine, "pintan");
+        GWEN_XMLNODE *segment = GWEN_MsgEngine_FindNodeByPropertyStrictProto(engine, "SEG", "id", 0, "SigTail");
+        GWEN_DB_NODE *values = GWEN_DB_Group_new("values");
+        GWEN_DB_SetIntValue(values, GWEN_DB_FLAGS_DEFAULT, "head/seq", 4);
+        GWEN_DB_SetCharValue(values, GWEN_DB_FLAGS_DEFAULT, "ctrlref", "1234567");
+        GWEN_DB_SetCharValue(values, GWEN_DB_FLAGS_DEFAULT, "pin", pin.constData());
+        GWEN_BUFFER *buffer = GWEN_Buffer_new(0, 256, 0, 1);
+        const int rv = segment ? GWEN_MsgEngine_CreateMessageFromNode(engine, segment, buffer, values) : -1;
+        result = rv == 0 ? QByteArray(GWEN_Buffer_GetStart(buffer), static_cast<int>(GWEN_Buffer_GetUsedBytes(buffer)))
+                         : QByteArray("error ") + QByteArray::number(rv);
+        GWEN_Buffer_free(buffer);
+        GWEN_DB_Group_free(values);
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(banking, provider);
+    return result;
+}
+
 QVariant prefersCamt(AB_BANKING *banking, uint32_t accountUid)
 {
     useInstalledDefinitions();
@@ -345,6 +375,20 @@ void tanMethodTests(AB_BANKING *banking, const QString &installedData)
     Check::equal("An empty name removes it", storedTanMedium(banking, uid), QStringLiteral("(none)"));
 
     transactionJobTests(banking, uid);
+
+    // The PIN in the message, as GwenGui hands it over (ISO 8859-1): FinTS's own
+    // syntax characters are escaped with "?", the others go as they are.
+    Check::section("PIN in the message");
+    const QString pin = QStringLiteral("äöüÄÖÜß!$%&/()=?+#,.-:");
+    Check::equal("special characters are escaped by AqBanking", signatureWithPin(banking, uid, pin.toLatin1()),
+                 QByteArray("HNSHA:4:2+1234567++") + QStringLiteral("äöüÄÖÜß!$%&/()=???+#,.-?:'").toLatin1());
+    Check::equal("so are the separators", signatureWithPin(banking, uid, "ab+c:d'e"),
+                 QByteArray("HNSHA:4:2+1234567++ab?+c?:d?'e'"));
+    Check::equal("18 umlauts fit as ISO 8859-1",
+                 signatureWithPin(banking, uid, QStringLiteral("ÄÖÜßäöüÄÖÜßäöüÄÖÜß").toLatin1()).left(19),
+                 QByteArray("HNSHA:4:2+1234567++"));
+    Check::that("but not as UTF-8, which AqBanking cannot encode (35 bytes at most)",
+                signatureWithPin(banking, uid, QStringLiteral("ÄÖÜßäöüÄÖÜßäöüÄÖÜß").toUtf8()).startsWith("error"));
 
     useInstalledDefinitions();
     ZB_DeleteUser(banking, uid);

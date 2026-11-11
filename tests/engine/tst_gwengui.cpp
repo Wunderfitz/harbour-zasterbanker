@@ -52,6 +52,7 @@ qint64 fakeClock()
 struct Entry {
     int result;
     QString text;
+    QByteArray bytes; // as AqBanking gets them
 };
 
 // What AqBanking does when it needs the PIN of a bank access.
@@ -61,7 +62,7 @@ Entry askPin(const char *token, int minLength = 4)
     buffer[0] = 0;
     const int rv = GWEN_Gui_GetPassword(0, token, "PIN", "Bitte geben Sie Ihre PIN ein.", buffer, minLength,
                                         sizeof(buffer), GWEN_Gui_PasswordMethod_Text, nullptr, 0);
-    return Entry { rv, QString::fromUtf8(buffer) };
+    return Entry { rv, QString::fromUtf8(buffer), QByteArray(buffer) };
 }
 
 Entry askTan(const char *text, GWEN_GUI_PASSWORD_METHOD method = GWEN_Gui_PasswordMethod_Text,
@@ -71,7 +72,7 @@ Entry askTan(const char *text, GWEN_GUI_PASSWORD_METHOD method = GWEN_Gui_Passwo
     buffer[0] = 0;
     const int rv = GWEN_Gui_GetPassword(GWEN_GUI_INPUT_FLAGS_TAN, "TAN_pintan_alice", "TAN", text, buffer, 1,
                                         sizeof(buffer), method, params, 0);
-    return Entry { rv, QString::fromUtf8(buffer) };
+    return Entry { rv, QString::fromUtf8(buffer), QByteArray(buffer) };
 }
 
 void bankSays(const char *token, GWEN_GUI_PASSWORD_STATUS status)
@@ -178,6 +179,29 @@ void pinTests()
     answers << answer(QStringLiteral("12"));
     entry = askPin(ALICE, 5);
     Check::equal("a PIN too short is refused", entry.result, GWEN_ERROR_INVALID);
+    Check::that("and reported", FakeBankingThread::errors.size() == 1);
+    Check::that("and not kept", !remembered(ALICE));
+    GwenGui::finishCommand();
+
+    // FinTS messages are ISO 8859-1: an umlaut must reach AqBanking as one byte,
+    // not as UTF-8's two (found 2026-11-11, "Unable to encode" for a long PIN).
+    FakeBankingThread::reset();
+    const QString special = QStringLiteral("äöüÄÖÜß!$%&/()=?+#,.-:");
+    answers << answer(special);
+    entry = askPin(ALICE);
+    Check::equal("a PIN with umlauts and special characters is accepted", entry.result, 0);
+    Check::equal("and handed over in ISO 8859-1", entry.bytes, special.toLatin1());
+    bankSays(ALICE, GWEN_Gui_PasswordStatus_Ok);
+    GwenGui::finishCommand();
+    entry = askPin(ALICE);
+    Check::that("and remembered as such", requests.size() == 1 && entry.bytes == special.toLatin1());
+    GwenGui::finishCommand();
+    GwenGui::forgetPins();
+
+    FakeBankingThread::reset();
+    answers << answer(QStringLiteral("12€45"));
+    entry = askPin(ALICE);
+    Check::equal("a PIN with a character ISO 8859-1 lacks is refused", entry.result, GWEN_ERROR_INVALID);
     Check::that("and reported", FakeBankingThread::errors.size() == 1);
     Check::that("and not kept", !remembered(ALICE));
     GwenGui::finishCommand();

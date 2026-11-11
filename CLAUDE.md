@@ -490,6 +490,20 @@ the transactions page, which a depot has no use for.
   - It is wiped at once when the bank rejects it, when a bank access is
     removed or all data is reset (all PINs), and when the app ends.
   - The PIN dialog says so.
+- **PIN, TAN and the TAN medium's name reach AqBanking in ISO 8859-1** (found
+  2026-11-11: a tester's PIN with umlauts and special characters failed with
+  AqBanking's "Unable to encode"). FinTS messages are ISO 8859-1 (python-fints
+  encodes every value so; AqBanking converts answers from it), and AqBanking
+  puts PIN and TAN into the message as it gets them, while the dialogs answer
+  in UTF-8. An umlaut or "ß" was two bytes: a different PIN for the bank, which
+  uses up its attempts, and a long one exceeded the PIN field's 35 bytes, so the
+  message could not be built. `GwenGui` converts PIN and TAN (and wipes every
+  copy), `chooseTanMedium()` the name; a character ISO 8859-1 lacks (e.g. "€")
+  is refused with a message rather than replaced. GnuCash and Gwenhywfar's own
+  GUIs (KMyMoney) hand over UTF-8 as well. FinTS's syntax characters need no
+  escaping by the app: Gwenhywfar escapes `+ : ' ?` with `?`. It does not escape
+  `@`, which FinTS lists as well (python-fints does); a PIN with "@" is
+  untested, and fixing that would mean patching Gwenhywfar.
 - **The last balances are stored, in the sealed store** (project owner's
   decision, 2026-11-07: the overview should show the last known balances at
   start). `BankingThread` keeps the last balance per account as app data
@@ -643,8 +657,10 @@ checked on every push.
   and every kind of damage refused, fresh nonces, mode 0600, the "dir"
   manager's behaviour AqBanking relies on), `GwenGui` through Gwenhywfar's own
   GUI API with a stand-in banking thread (`FakeBankingThread.cpp`: every rule of
-  the PIN memory, with a fake clock through `GwenGui::setClock()`, the filter on
-  the bank's texts, TAN images, message boxes, the certificate check),
+  the PIN memory, with a fake clock through `GwenGui::setClock()`, a PIN with
+  umlauts and special characters handed over in ISO 8859-1, one with "€"
+  refused, the filter on the bank's texts, TAN images, message boxes, the
+  certificate check),
   statements read the way the app reads them (AqBanking started on the
   encrypted store, its real importers with the profiles the package installs,
   merged as the aqhbci jobs merge them, then `StatementReader`: MT940, MT942,
@@ -655,8 +671,10 @@ checked on every push.
   made-up accounts (CAMT, MT940 or a credit card's job only where the UPD lists
   it, and whether it lists `HKCAZ`), the choice of CAMT from those, the
   account AqBanking's (patched) CAMT job names (IBAN and BIC; account number
-  and bank code without IBAN), and the CAMT flag it sets and clears, the models, and the bank search on the
-  made-up list.
+  and bank code without IBAN), the CAMT flag it sets and clears, the PIN as
+  AqBanking's message engine writes it into the signature (`HNSHA`: escaped,
+  ISO 8859-1, and UTF-8 umlauts over the 35 bytes failing as on the phone), the
+  models, and the bank search on the made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from the i486
   build directory, whose binaries run natively; it installs AqBanking's data
@@ -889,6 +907,12 @@ project unless the owner says so.
   (not handed out); it was replaced by the AqBanking patch that has the CAMT
   request name the account by IBAN and BIC only (see
   [Transactions](#transactions)). Its result at comdirect is awaited.
+- 2026-11-11, tester: **a PIN with special characters fails with "Unable to
+  encode"** (characters from `äöüÄÖÜß!$%&/()=?+#,.-:`). AqBanking reports that
+  when it cannot build the message; the engine tests reproduce it for umlauts
+  in UTF-8 over the PIN field's 35 bytes. Fixed by handing PIN and TAN over in
+  ISO 8859-1 (see [Data protection](#data-protection)); untested on a bank. A
+  shorter PIN with umlauts would have gone out, but as the wrong PIN.
 - 2026-11-11, real bank, tester: **a Postbank credit card's transactions fail**
   with `9050 - Teilweise fehlerhaft. (M)`, `9010 - Verarbeitung nicht möglich.
   (S)` and `9210 - Keine Daten zur übermittelten Auftragsreferenz vorhanden.
