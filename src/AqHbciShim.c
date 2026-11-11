@@ -28,6 +28,8 @@
 #include "aqhbci/banking/account.h"
 #include "aqhbci/banking/provider_online.h"
 #include "aqhbci/banking/user.h"
+#include "aqhbci/ajobs/jobgettrans_camt_l.h"
+#include "aqhbci/ajobs/jobgettransactions_l.h"
 #include "aqhbci/joblayer/job_l.h"
 #include "aqhbci/tan/tanmethod.h"
 
@@ -340,11 +342,12 @@ int ZB_GetAccountUser(AB_BANKING *ab, uint32_t accountUid, uint32_t *pUserUid)
     return rv;
 }
 
-int ZB_PreferCamtDownload(AB_BANKING *ab, uint32_t accountUid)
+int ZB_SetCamtDownload(AB_BANKING *ab, uint32_t accountUid, int prefer)
 {
     AB_PROVIDER *pro;
     AB_ACCOUNT *account = NULL;
     int rv;
+    int isSet;
 
     pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
     if (!pro) {
@@ -352,14 +355,60 @@ int ZB_PreferCamtDownload(AB_BANKING *ab, uint32_t accountUid)
     }
     /* Read first: changing an account rewrites the encrypted store. */
     rv = AB_Provider_GetAccount(pro, accountUid, 1, 1, &account);
-    if (rv >= 0 && !(AH_Account_GetFlags(account) & AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD)) {
-        AB_Account_free(account);
-        account = NULL;
-        rv = AB_Provider_GetAccount(pro, accountUid, 1, 0, &account);
-        if (rv >= 0) {
-            AH_Account_AddFlags(account, AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD);
-            rv = AB_Provider_EndExclUseAccount(pro, account, 0);
+    if (rv >= 0) {
+        isSet = (AH_Account_GetFlags(account) & AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD) ? 1 : 0;
+        if (isSet != (prefer ? 1 : 0)) {
+            AB_Account_free(account);
+            account = NULL;
+            rv = AB_Provider_GetAccount(pro, accountUid, 1, 0, &account);
+            if (rv >= 0) {
+                if (prefer) {
+                    AH_Account_AddFlags(account, AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD);
+                } else {
+                    AH_Account_SubFlags(account, AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD);
+                }
+                rv = AB_Provider_EndExclUseAccount(pro, account, 0);
+            }
         }
+    }
+    AB_Account_free(account);
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+int ZB_TransactionJobs(AB_BANKING *ab, uint32_t accountUid)
+{
+    AB_PROVIDER *pro;
+    AB_ACCOUNT *account = NULL;
+    AB_USER *user = NULL;
+    AH_JOB *job;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    rv = AB_Provider_GetAccount(pro, accountUid, 1, 1, &account);
+    if (rv >= 0) {
+        rv = AB_Provider_GetUser(pro, AB_Account_GetUserId(account), 1, 1, &user);
+    }
+    if (rv >= 0) {
+        /* The two jobs AH_Provider_CreateHbciJob() chooses between. Creating one
+           only reads the bank's parameter data, as every request does. */
+        rv = 0;
+        job = AH_Job_GetTransactionsCAMT_new(pro, user, account);
+        if (job) {
+            rv |= ZB_TRANSACTION_JOB_CAMT;
+            AH_Job_free(job);
+        }
+        job = AH_Job_GetTransactions_new(pro, user, account);
+        if (job) {
+            rv |= ZB_TRANSACTION_JOB_OTHER;
+            AH_Job_free(job);
+        }
+    }
+    if (user) {
+        AB_User_free(user);
     }
     AB_Account_free(account);
     AB_Banking_EndUseProvider(ab, pro);

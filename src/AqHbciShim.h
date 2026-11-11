@@ -82,11 +82,22 @@ int ZB_ListUsers(AB_BANKING *ab, ZB_USER_INFO *users, int maxUsers);
 int ZB_GetAccountUser(AB_BANKING *ab, uint32_t accountUid, uint32_t *pUserUid);
 
 /*
- * Has transactions fetched as CAMT where the bank offers that; AqBanking falls
- * back to MT940 if it does not. Without this it only ever tries MT940, and gives
- * up silently if the bank does not list that job for the account.
+ * Sets (prefer != 0) or clears AqBanking's account flag to fetch transactions as
+ * CAMT where the bank offers that; with it, AqBanking falls back to MT940 only if
+ * the bank does not offer CAMT for the account. Without it, AqBanking only ever
+ * tries MT940, and gives up silently if the bank does not list that job for the
+ * account. Rewrites the store only if the flag changes.
  */
-int ZB_PreferCamtDownload(AB_BANKING *ab, uint32_t accountUid);
+int ZB_SetCamtDownload(AB_BANKING *ab, uint32_t accountUid, int prefer);
+
+/*
+ * Which jobs for transactions the bank's parameter data offer for the account,
+ * as a combination of the flags below: CAMT (HKCAZ), and the job AqBanking uses
+ * without the CAMT flag (MT940, HKKAZ, or a credit card's own). Contacts no one.
+ */
+#define ZB_TRANSACTION_JOB_CAMT  1
+#define ZB_TRANSACTION_JOB_OTHER 2
+int ZB_TransactionJobs(AB_BANKING *ab, uint32_t accountUid);
 
 /*
  * Asks the bank for the SEPA details of the account's user if the account has no

@@ -606,7 +606,12 @@ void BankingThread::executeFetchTransactions(const Command &command)
     }
     const uint accountId = command.arguments.value(QStringLiteral("accountId")).toUInt();
 
-    const int preferred = ZB_PreferCamtDownload(banking, accountId);
+    // CAMT first: some banks no longer offer MT940 at all.
+    const int jobs = ZB_TransactionJobs(banking, accountId);
+    if (jobs < 0) {
+        qWarning() << "Could not tell which jobs the bank offers for this account" << jobs;
+    }
+    const int preferred = ZB_SetCamtDownload(banking, accountId, 1);
     if (preferred < 0) {
         qWarning() << "Could not prefer CAMT for this account" << preferred;
     }
@@ -623,44 +628,44 @@ void BankingThread::executeFetchTransactions(const Command &command)
     bankMessages.clear();
     collectingBankMessages = true;
 
-    AB_TRANSACTION *job = AB_Transaction_new();
-    AB_Transaction_SetCommand(job, AB_Transaction_CommandGetTransactions);
-    AB_Transaction_SetUniqueAccountId(job, accountId);
-    const QDate firstDay = QDate::currentDate().addDays(-TRANSACTION_DAYS);
-    GWEN_DATE *firstDate = GWEN_Date_fromGregorian(firstDay.year(), firstDay.month(), firstDay.day());
-    AB_Transaction_SetFirstDate(job, firstDate);
-    GWEN_Date_free(firstDate);
-    AB_TRANSACTION_LIST2 *jobs = AB_Transaction_List2_new();
-    AB_Transaction_List2_PushBack(jobs, job);
+    QVariantList transactions;
+    bool hasAnswer = false;
+    bool jobFailed = false;
+    int rv = requestTransactions(accountId, &transactions, &hasAnswer, &jobFailed);
+    // A bank that rejects the request does not fail the job or the call, it only
+    // reports an error: without transactions, that is not "no transactions".
+    bool success = rv >= 0 && hasAnswer && !jobFailed && (!transactions.isEmpty() || lastError.isEmpty());
 
-    AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
-    const int rv = AB_Banking_SendCommands(banking, jobs, context);
+    // CAMT accepted without a single transaction: ask again for MT940, as far as
+    // the bank offers it. comdirect rejects the CAMT request's account with 3010,
+    // the code for "no entries" (2026-11-11), and GnuCash and KMyMoney users never
+    // see that, as their AqBanking only asks for CAMT where they switch it on.
+    if (success && transactions.isEmpty() && jobs >= 0
+            && (jobs & ZB_TRANSACTION_JOB_CAMT) && (jobs & ZB_TRANSACTION_JOB_OTHER)) {
+        const int cleared = ZB_SetCamtDownload(banking, accountId, 0);
+        if (cleared < 0) {
+            qWarning() << "Could not clear the CAMT preference for this account" << cleared;
+        } else {
+            QVariantList fallbackTransactions;
+            bool fallbackAnswer = false;
+            bool fallbackFailed = false;
+            lastError.clear();
+            const int fallbackResult = requestTransactions(accountId, &fallbackTransactions, &fallbackAnswer, &fallbackFailed);
+            // Only an answer with transactions replaces the first one: the account
+            // may simply have none, and an error here says nothing about CAMT.
+            if (fallbackResult >= 0 && fallbackAnswer && !fallbackFailed && !fallbackTransactions.isEmpty()) {
+                transactions = fallbackTransactions;
+            }
+            lastError.clear();
+        }
+    }
+
     collectingBankMessages = false;
     // Before the result, so that the page has them when it learns the outcome.
     emit bankMessagesReported(bankMessages);
-    const bool jobFailed = AB_Transaction_GetStatus(job) == AB_Transaction_StatusError;
-    AB_Transaction_List2_freeAll(jobs);
-
-    // AB_Banking_SendCommands() also returns 0 when the connection failed, and
-    // no transactions may simply mean there were none. But the job only creates
-    // the account's entry in the context once the bank has answered.
-    bool hasAnswer = false;
-    QVariantList transactions;
-    for (const AB_IMEXPORTER_ACCOUNTINFO *info = AB_ImExporterContext_GetFirstAccountInfo(context); info;
-         info = AB_ImExporterAccountInfo_List_Next(info)) {
-        if (AB_ImExporterAccountInfo_GetAccountId(info) == accountId) {
-            hasAnswer = true;
-            transactions += StatementReader::transactions(info);
-        }
-    }
-    // A bank that rejects the request does not fail the job or the call, it only
-    // reports an error: without transactions, that is not "no transactions".
-    const bool success = rv >= 0 && hasAnswer && !jobFailed && (!transactions.isEmpty() || lastError.isEmpty());
-
     if (success) {
         emit transactionsFetched(accountId, transactions);
     }
-    AB_ImExporterContext_free(context);
 
     // A job that fails without an error message never got as far as the bank's
     // answer being read, or was never sent at all: AqBanking only tells its log.
@@ -674,6 +679,39 @@ void BankingThread::executeFetchTransactions(const Command &command)
         }
     }
     emit commandFinished(FetchTransactions, success, message);
+}
+
+int BankingThread::requestTransactions(uint32_t accountId, QVariantList *transactions, bool *hasAnswer, bool *jobFailed)
+{
+    AB_TRANSACTION *job = AB_Transaction_new();
+    AB_Transaction_SetCommand(job, AB_Transaction_CommandGetTransactions);
+    AB_Transaction_SetUniqueAccountId(job, accountId);
+    const QDate firstDay = QDate::currentDate().addDays(-TRANSACTION_DAYS);
+    GWEN_DATE *firstDate = GWEN_Date_fromGregorian(firstDay.year(), firstDay.month(), firstDay.day());
+    AB_Transaction_SetFirstDate(job, firstDate);
+    GWEN_Date_free(firstDate);
+    AB_TRANSACTION_LIST2 *jobs = AB_Transaction_List2_new();
+    AB_Transaction_List2_PushBack(jobs, job);
+
+    AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
+    const int rv = AB_Banking_SendCommands(banking, jobs, context);
+    *jobFailed = AB_Transaction_GetStatus(job) == AB_Transaction_StatusError;
+    AB_Transaction_List2_freeAll(jobs);
+
+    // AB_Banking_SendCommands() also returns 0 when the connection failed, and
+    // no transactions may simply mean there were none. But the job only creates
+    // the account's entry in the context once the bank has answered.
+    *hasAnswer = false;
+    transactions->clear();
+    for (const AB_IMEXPORTER_ACCOUNTINFO *info = AB_ImExporterContext_GetFirstAccountInfo(context); info;
+         info = AB_ImExporterAccountInfo_List_Next(info)) {
+        if (AB_ImExporterAccountInfo_GetAccountId(info) == accountId) {
+            *hasAnswer = true;
+            *transactions += StatementReader::transactions(info);
+        }
+    }
+    AB_ImExporterContext_free(context);
+    return rv;
 }
 
 void BankingThread::executeFetchHoldings(const Command &command)

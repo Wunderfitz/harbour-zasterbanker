@@ -36,6 +36,10 @@ Set by the project owner at the start; they apply to every iteration.
   than that. Third-party libraries are built against it as well.
 - **Harbour-compliant.** Any deviation is asked for first and then recorded
   under [Harbour exceptions](#harbour-exceptions). Do not add one without asking.
+- **Patch AqBanking and the other third-party libraries only as a last
+  resort** (project owner, 2026-11-11). When unsure how to fix or implement
+  something, look first at how GnuCash and KMyMoney, both built on AqBanking,
+  and their documentation handle it.
 - **Do not implement the FinTS protocol ourselves.** AqBanking does the heavy
   lifting (see [FinTS library](#fints-library-aqbanking)). Our own code is the
   UI, what AqBanking does not offer, and what makes the app better on Sailfish
@@ -248,7 +252,8 @@ that method → fetch the account list → fetch the balances. If any step but t
 last fails, the half-made user is deleted again: nothing is left behind.
 
 - **The TAN medium name** (added 2026-11-09 for Deutsche Bank and Postbank,
-  whose BestSign failed without it; see [Verification status](#verification-status)).
+  whose BestSign failed without it, and works with it since; see
+  [Verification status](#verification-status)).
   Some banks want, with every TAN, the name of the device or app it comes from,
   as the user named it in the bank's security settings. AqBanking sends one only
   if it was set (`aqhbci-tool4 setTanMediumId`, `ZB_SetTanMediumId()`), and does
@@ -308,12 +313,29 @@ last fails, the half-made user is deleted again: nothing is left behind.
   tries MT940 unless an account has `AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD`, and
   creates that job only if the bank's parameter data for the account lists
   `HKKAZ`. If not, it gives up silently, without contacting the bank. So
-  `ZB_PreferCamtDownload()` sets the flag before each fetch (rewriting the store
-  only the first time), and AqBanking falls back to MT940 by itself if CAMT is
+  `ZB_SetCamtDownload()` sets the flag before each fetch (rewriting the store
+  only when it changes), and AqBanking falls back to MT940 by itself if CAMT is
   not offered. The `xml` importer's `default.conf` and `camt_*.conf` profiles and
   its `camt_*.xml` schemas are installed for this. **The `camt_*.conf` files are
   not optional:** AqBanking derives the formats it can offer the bank from those
   file names, and without them drops the CAMT job as silently as the MT940 one.
+- **MT940 again when CAMT brings nothing** (decided 2026-11-11, for comdirect;
+  see [Verification status](#verification-status)). If the CAMT request is
+  accepted without a single transaction and the account's UPD lists `HKKAZ`,
+  the fetch clears the flag and asks again; the answer replaces the first only
+  if it holds transactions, otherwise the result stays "no transactions".
+  `ZB_TransactionJobs()` tells beforehand which of the two jobs the bank's
+  parameters offer, by creating them as AqBanking would, without sending
+  anything. The flag stays cleared until the next fetch sets it again, so
+  every fetch tries CAMT first. This is the app's answer to what GnuCash and
+  KMyMoney leave to the user: their AqBanking asks for MT940 unless the user
+  ticks "Prefer Statement Download as CAMT" per account, which they do where
+  the bank no longer offers MT940 (Atruvia since November 2025). The
+  alternative, patching AqBanking's CAMT request (it always adds the national
+  account number, see comdirect below), was turned down: **AqBanking is patched
+  only as a last resort**, after looking at how GnuCash and KMyMoney solve the
+  problem. An account that really has no transactions costs a second request.
+  The bank's messages of both requests go to the page, once each.
 - **The account needs a BIC, which the account list does not bring** (found
   2026-11-06: the project owner's Volksbank answered `9160`, a mandatory field
   missing). `HKCAZ` identifies the account by IBAN and BIC, and only
@@ -589,7 +611,9 @@ checked on every push.
   CAMT 052.001.08 and .02, MT535 with all three fixes of the MT535 patch, the
   choice of balance), the TAN methods the shim lists from made-up bank
   parameters (whether a TAN medium is required, in both of HKTAN's field
-  names) and the TAN medium it stores, the models, and the bank search on the
+  names) and the TAN medium it stores, the jobs for transactions it finds for
+  made-up accounts (CAMT, and MT940 only where the UPD lists `HKKAZ`) and the
+  CAMT flag it sets and clears, the models, and the bank search on the
   made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from the i486
@@ -609,8 +633,8 @@ checked on every push.
   directory. The tests' home folder is an empty one of their own, and they
   check that AqBanking writes no file there.
 - Not covered: `KeyStore` (needs the Sailfish Secrets daemon), anything that
-  talks to a bank, AqBanking's choice between CAMT and MT940 (it needs made-up
-  bank parameters, done once on the emulator on 2026-11-05), and the UI
+  talks to a bank (so neither the fallback to MT940 itself), which job
+  AqBanking sends for the flag (done once on the emulator on 2026-11-05), and the UI
   (`tests/search-focus.sh` needs the emulator).
 
 ### Continuous integration
@@ -706,7 +730,8 @@ project unless the owner says so.
   ran on sample data patched into the QML.
 - 2026-11-05, emulator (5.1): AqBanking's real parser with the installed
   profiles read sample MT940, MT942 and CAMT 052.001.02 and .08 statements into
-  `TransactionModel` correctly; `ZB_PreferCamtDownload()` sets the flag and it
+  `TransactionModel` correctly; `ZB_PreferCamtDownload()` (now
+  `ZB_SetCamtDownload()`) sets the flag and it
   stays. The samples were self-written, and the MT942 and CAMT pending path not
   run through the job's own merge. AqBanking's real job creation, fed made-up bank
   parameters, picks CAMT when offered and MT940 when that is all there is, and
@@ -790,6 +815,25 @@ project unless the owner says so.
   [Transactions](#transactions)), to find out what comdirect says; the
   project owner chose that over falling back to MT940 when CAMT brings
   nothing, which is the next step if the messages point there.
+- **2026-11-11, real bank, tester: comdirect's messages.** With that build, a
+  fetch on the Girokonto brought, after the dialog's own lines (3060, 3050 "UPD
+  nicht mehr aktuell", 0020, 3920 "Verfügbare TAN-Verfahren: mobileTAN", 3076),
+  `3905 - Bitte senden Sie die Anfrage erneut. (M)` and `3010 - Kontonummer ist
+  ungültig. Bitte Eingabe überprüfen. (S)`. So comdirect **rejects the account
+  in the request**, but with code 3010, which FinTS reserves for "no entries"
+  and which AqBanking counts as accepted (`job_virtual.c`): hence "Keine
+  Umsätze". The likely cause, from AqBanking's source: the CAMT job (`HKCAZ`)
+  always adds the national account number, sub-account and bank code to IBAN
+  and BIC (`jobgettrans_camt.c` calls `AH_AccountJob_WriteNationalAccountInfoToArgs()`
+  unconditionally), while the balance job (`HKSAL` 7), which works at
+  comdirect, and the MT940 job (`HKKAZ` 7) send IBAN and BIC only, and every
+  other job adds the national part only if the bank allows it in `HISPAS`.
+  comdirect's Girokonto and depot are known to share one account number, which
+  fits a bank that cannot resolve it. Not confirmed on the bank yet. GnuCash
+  and KMyMoney users do not run into it: they get MT940 unless they ask for
+  CAMT. So the app now asks again for MT940 when CAMT brings nothing (see
+  [Transactions](#transactions)), in the test build `0.5.0-0.202611111919` for the
+  tester; its result is awaited.
 - 2026-11-09, real banks, testers: **Deutsche Bank and Postbank fail with
   BestSign** (`fints.deutsche-bank.de`, `hbci.postbank.de`). Setting up the
   access stops right after choosing BestSign, with "HBCI: 9999 - Dialog
@@ -801,8 +845,11 @@ project unless the owner says so.
   media (`HKTAB`). python-fints saw the same codes at Postbank in 2019, GnuCash
   users got BestSign working with a TAN medium ID set in 2025. The test build
   `0.5.0-0.202611092123` asks for the name at setup (see
-  [Setting up a bank access](#setting-up-a-bank-access)); its result is
-  awaited.
+  [Setting up a bank access](#setting-up-a-bank-access)).
+- **2026-11-11, real bank, testers: BestSign works with the TAN medium name.**
+  With the test build, the testers report BestSign working smoothly once the
+  device name is entered at setup. Not reported: whether both Deutsche Bank and
+  Postbank were tried, and which BestSign variant (920, 921...) was chosen.
 - 2026-11-09, emulator (5.1), sample messages patched into the QML, real touch
   input: the empty transactions page says to pull down, the menu has "Messages
   from the bank", and its page lists them with markup kept literal. Copying them

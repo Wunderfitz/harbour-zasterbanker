@@ -144,6 +144,8 @@ private:
     /* Of all bank accesses, or only of the given one. */
     bool retrieveBalances(QString *errorMessage, bool oneBankAccess = false, uint32_t bankAccessId = 0);
     void executeFetchTransactions(const Command &command);
+    /* One request for the account's transactions, with the job AqBanking chooses. */
+    int requestTransactions(uint32_t accountId, QVariantList *transactions, bool *hasAnswer, bool *jobFailed);
     void executeFetchHoldings(const Command &command);
     void executeRemoveBankAccess(const Command &command);
     void executeResetData();

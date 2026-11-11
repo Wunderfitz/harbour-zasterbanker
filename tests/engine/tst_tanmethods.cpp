@@ -19,9 +19,11 @@
 
 /*
  * The TAN methods as the shim lists them, from made-up bank parameters (BPD),
- * and the TAN medium it stores for a user. The parameters are written into a
- * user the way AqBanking keeps those it got from a bank, and read back through
- * the encrypted store.
+ * and the TAN medium it stores for a user; and the jobs for transactions it
+ * finds for an account, from the same parameters and made-up account
+ * parameters (UPD), and the CAMT preference it sets. The parameters are written
+ * into a user the way AqBanking keeps those it got from a bank, and read back
+ * through the encrypted store.
  */
 
 #include "Check.h"
@@ -36,6 +38,7 @@
 extern "C" {
 #include <aqbanking/banking_be.h>
 #include <aqbanking/backendsupport/provider_be.h>
+#include "aqhbci/banking/account.h"
 #include "aqhbci/banking/user.h"
 #include "aqhbci/banking/user_l.h"
 #include "aqhbci/msglayer/bpd_l.h"
@@ -94,6 +97,15 @@ bool giveBankParameters(AB_BANKING *banking, uint32_t uid)
         GWEN_DB_SetIntValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "process", 2);
         GWEN_DB_SetCharValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "methodName", "iTAN");
         GWEN_DB_SetIntValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "tanMediumIdNeeded", 2);
+        // Transactions as CAMT (HKCAZ) and as MT940 (HKKAZ). Whether an account
+        // has MT940 is up to its UPD, CAMT only needs a format the installed
+        // profiles know.
+        GWEN_DB_NODE *camt = GWEN_DB_GetGroup(jobs, GWEN_DB_FLAGS_DEFAULT, "HICAZS/1");
+        GWEN_DB_SetIntValue(camt, GWEN_DB_FLAGS_OVERWRITE_VARS, "StoreDays", 90);
+        GWEN_DB_SetCharValue(camt, GWEN_DB_FLAGS_OVERWRITE_VARS, "supportedFormat",
+                             "urn:iso:std:iso:20022:tech:xsd:camt.052.001.08");
+        GWEN_DB_NODE *mt940 = GWEN_DB_GetGroup(jobs, GWEN_DB_FLAGS_DEFAULT, "HIKAZS/7");
+        GWEN_DB_SetIntValue(mt940, GWEN_DB_FLAGS_OVERWRITE_VARS, "storeDays", 90);
         AH_User_SetBpd(user, bpd);
         AH_Bpd_free(bpd);
         AH_User_AddTanMethod(user, 920);
@@ -117,6 +129,98 @@ QString storedTanMedium(AB_BANKING *banking, uint32_t uid)
     }
     AB_Banking_EndUseProvider(banking, provider);
     return result;
+}
+
+// An account of the user, as the account list brings it (an IBAN, a FinTS
+// account with suffix), with the jobs its UPD lists for it.
+uint32_t addAccount(AB_BANKING *banking, uint32_t uid, const char *iban, const QList<QByteArray> &updJobs)
+{
+    useInstalledDefinitions();
+    AB_PROVIDER *provider = AB_Banking_BeginUseProvider(banking, BACKEND);
+    AB_ACCOUNT *account = AB_Provider_CreateAccountObject(provider);
+    AB_Account_SetUserId(account, uid);
+    AB_Account_SetBankCode(account, "12345678");
+    AB_Account_SetAccountNumber(account, QByteArray(iban).right(10).constData());
+    AB_Account_SetIban(account, iban);
+    AB_Account_SetBic(account, "TESTDEFFXXX");
+    AB_Account_SetAccountType(account, AB_AccountType_Bank);
+    AH_Account_AddFlags(account, AH_BANK_FLAGS_KTV2);
+    int rv = AB_Provider_AddAccount(provider, account, 1);
+    uint32_t accountUid = rv >= 0 ? AB_Account_GetUniqueId(account) : 0;
+    AB_Account_free(account);
+
+    AB_USER *user = nullptr;
+    if (accountUid && AB_Provider_GetUser(provider, uid, 1, 0, &user) >= 0) {
+        // where AqBanking files the UPD it got for an account
+        const QByteArray group = QByteArray("uaid-") + QByteArray::number(accountUid, 16).rightJustified(8, '0');
+        GWEN_DB_NODE *upd = GWEN_DB_GetGroup(AH_User_GetUpd(user), GWEN_DB_FLAGS_OVERWRITE_GROUPS, group.constData());
+        for (const QByteArray &job : updJobs) {
+            GWEN_DB_NODE *updJob = GWEN_DB_GetGroup(upd, GWEN_PATH_FLAGS_CREATE_GROUP, "updjob");
+            GWEN_DB_SetCharValue(updJob, GWEN_DB_FLAGS_OVERWRITE_VARS, "job", job.constData());
+        }
+        if (AB_Provider_EndExclUseUser(provider, user, 0) < 0) {
+            accountUid = 0;
+        }
+        AB_User_free(user);
+    } else {
+        accountUid = 0;
+    }
+    AB_Banking_EndUseProvider(banking, provider);
+    return accountUid;
+}
+
+QVariant prefersCamt(AB_BANKING *banking, uint32_t accountUid)
+{
+    useInstalledDefinitions();
+    AB_PROVIDER *provider = AB_Banking_BeginUseProvider(banking, BACKEND);
+    AB_ACCOUNT *account = nullptr;
+    QVariant result;
+    if (AB_Provider_GetAccount(provider, accountUid, 1, 1, &account) >= 0) {
+        result = (AH_Account_GetFlags(account) & AH_BANK_FLAGS_PREFER_CAMT_DOWNLOAD) != 0;
+        AB_Account_free(account);
+    }
+    AB_Banking_EndUseProvider(banking, provider);
+    return result;
+}
+
+int transactionJobs(AB_BANKING *banking, uint32_t accountUid)
+{
+    useInstalledDefinitions();
+    return ZB_TransactionJobs(banking, accountUid);
+}
+
+int setCamtDownload(AB_BANKING *banking, uint32_t accountUid, int prefer)
+{
+    useInstalledDefinitions();
+    return ZB_SetCamtDownload(banking, accountUid, prefer);
+}
+
+// The jobs the fetch of transactions chooses between, and the flag that chooses.
+void transactionJobTests(AB_BANKING *banking, uint32_t uid)
+{
+    Check::section("Jobs for transactions");
+    const uint32_t both = addAccount(banking, uid, "DE02120300000000202051", {"HKSAL", "HKCAZ", "HKKAZ"});
+    const uint32_t camtOnly = addAccount(banking, uid, "DE02500105170137075030", {"HKSAL", "HKCAZ"});
+    if (!Check::that("Two accounts are added", both && camtOnly)) {
+        return;
+    }
+    Check::equal("CAMT and MT940 where the UPD lists HKKAZ", transactionJobs(banking, both),
+                 ZB_TRANSACTION_JOB_CAMT | ZB_TRANSACTION_JOB_OTHER);
+    Check::equal("CAMT only where it does not", transactionJobs(banking, camtOnly), ZB_TRANSACTION_JOB_CAMT);
+    Check::that("An unknown account is an error", transactionJobs(banking, 0x7fffffff) < 0);
+
+    Check::equal("No CAMT preference at first", prefersCamt(banking, both), false);
+    int rv = setCamtDownload(banking, both, 1);
+    Check::that("CAMT is preferred", rv >= 0, QString::number(rv));
+    Check::equal("The preference is stored", prefersCamt(banking, both), true);
+    rv = setCamtDownload(banking, both, 1);
+    Check::that("Preferring it again is fine", rv >= 0 && prefersCamt(banking, both).toBool(), QString::number(rv));
+    rv = setCamtDownload(banking, both, 0);
+    Check::that("The preference is cleared", rv >= 0, QString::number(rv));
+    Check::equal("It reads back cleared", prefersCamt(banking, both), false);
+    Check::equal("The other account is left alone", prefersCamt(banking, camtOnly), false);
+    Check::equal("The jobs offered stay the same", transactionJobs(banking, both),
+                 ZB_TRANSACTION_JOB_CAMT | ZB_TRANSACTION_JOB_OTHER);
 }
 
 const ZB_TAN_METHOD *find(const ZB_TAN_METHOD *methods, int count, int id)
@@ -172,6 +276,8 @@ void tanMethodTests(AB_BANKING *banking, const QString &installedData)
     useInstalledDefinitions();
     ZB_SetTanMediumId(banking, uid, "");
     Check::equal("An empty name removes it", storedTanMedium(banking, uid), QStringLiteral("(none)"));
+
+    transactionJobTests(banking, uid);
 
     useInstalledDefinitions();
     ZB_DeleteUser(banking, uid);
