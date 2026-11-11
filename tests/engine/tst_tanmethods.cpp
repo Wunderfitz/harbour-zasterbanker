@@ -201,13 +201,29 @@ void transactionJobTests(AB_BANKING *banking, uint32_t uid)
     Check::section("Jobs for transactions");
     const uint32_t both = addAccount(banking, uid, "DE02120300000000202051", {"HKSAL", "HKCAZ", "HKKAZ"});
     const uint32_t camtOnly = addAccount(banking, uid, "DE02500105170137075030", {"HKSAL", "HKCAZ"});
-    if (!Check::that("Two accounts are added", both && camtOnly)) {
+    const uint32_t mt940Only = addAccount(banking, uid, "DE89370400440532013000", {"HKSAL", "HKKAZ"});
+    // A credit card at Postbank: its own jobs for balance and transactions
+    const uint32_t creditCard = addAccount(banking, uid, "DE75512108001245126199", {"DKKKS", "DKKKU"});
+    // No jobs at all in the UPD
+    const uint32_t unlisted = addAccount(banking, uid, "DE12500105170648489890", {});
+    if (!Check::that("Five accounts are added", both && camtOnly && mt940Only && creditCard && unlisted)) {
         return;
     }
-    Check::equal("CAMT and MT940 where the UPD lists HKKAZ", transactionJobs(banking, both),
-                 ZB_TRANSACTION_JOB_CAMT | ZB_TRANSACTION_JOB_OTHER);
-    Check::equal("CAMT only where it does not", transactionJobs(banking, camtOnly), ZB_TRANSACTION_JOB_CAMT);
+    const int camt = ZB_TRANSACTION_JOB_CAMT;
+    const int other = ZB_TRANSACTION_JOB_OTHER;
+    const int listed = ZB_TRANSACTION_JOB_CAMT_LISTED;
+    Check::equal("CAMT and MT940 where the UPD lists both", transactionJobs(banking, both), camt | other | listed);
+    Check::equal("CAMT only where it lists HKCAZ only", transactionJobs(banking, camtOnly), camt | listed);
+    Check::equal("MT940, and CAMT by the BPD, where it lists HKKAZ only", transactionJobs(banking, mt940Only), camt | other);
+    Check::equal("The credit card job, and CAMT by the BPD, for a credit card", transactionJobs(banking, creditCard), camt | other);
+    Check::equal("CAMT by the BPD alone where the UPD lists nothing", transactionJobs(banking, unlisted), camt);
     Check::that("An unknown account is an error", transactionJobs(banking, 0x7fffffff) < 0);
+
+    Check::equal("CAMT first where the UPD lists both", ZB_PreferCamtFor(camt | other | listed), 1);
+    Check::equal("CAMT first where it lists HKCAZ only", ZB_PreferCamtFor(camt | listed), 1);
+    Check::equal("CAMT first where it lists nothing", ZB_PreferCamtFor(camt), 1);
+    Check::equal("MT940 where it lists HKKAZ only", ZB_PreferCamtFor(camt | other), 0);
+    Check::equal("CAMT first if the jobs are unknown", ZB_PreferCamtFor(-1), 1);
 
     Check::equal("No CAMT preference at first", prefersCamt(banking, both), false);
     int rv = setCamtDownload(banking, both, 1);
@@ -219,8 +235,7 @@ void transactionJobTests(AB_BANKING *banking, uint32_t uid)
     Check::that("The preference is cleared", rv >= 0, QString::number(rv));
     Check::equal("It reads back cleared", prefersCamt(banking, both), false);
     Check::equal("The other account is left alone", prefersCamt(banking, camtOnly), false);
-    Check::equal("The jobs offered stay the same", transactionJobs(banking, both),
-                 ZB_TRANSACTION_JOB_CAMT | ZB_TRANSACTION_JOB_OTHER);
+    Check::equal("The jobs offered stay the same", transactionJobs(banking, both), camt | other | listed);
 }
 
 const ZB_TAN_METHOD *find(const ZB_TAN_METHOD *methods, int count, int id)

@@ -92,12 +92,25 @@ int ZB_SetCamtDownload(AB_BANKING *ab, uint32_t accountUid, int prefer);
 
 /*
  * Which jobs for transactions the bank's parameter data offer for the account,
- * as a combination of the flags below: CAMT (HKCAZ), and the job AqBanking uses
- * without the CAMT flag (MT940, HKKAZ, or a credit card's own). Contacts no one.
+ * as a combination of the flags below: CAMT (HKCAZ), which AqBanking creates
+ * going by the bank's parameters (BPD) alone; the job it uses without the CAMT
+ * flag (MT940, HKKAZ, or a credit card's own, DKKKU, HKKKU), which it only
+ * creates if the account's parameters (UPD) list it; and whether the UPD lists
+ * HKCAZ as well. Contacts no one.
  */
-#define ZB_TRANSACTION_JOB_CAMT  1
-#define ZB_TRANSACTION_JOB_OTHER 2
+#define ZB_TRANSACTION_JOB_CAMT        1
+#define ZB_TRANSACTION_JOB_OTHER       2
+#define ZB_TRANSACTION_JOB_CAMT_LISTED 4
 int ZB_TransactionJobs(AB_BANKING *ab, uint32_t accountUid);
+
+/*
+ * Whether to ask for CAMT first, given ZB_TransactionJobs()'s answer (or an
+ * error): yes, unless the account's UPD lists another job for transactions but
+ * not HKCAZ. Then that job is what the bank offers for the account, as AqBanking
+ * itself decides for balances and MT940 by the UPD (Postbank's credit cards list
+ * DKKKU, and answer a CAMT request with 9010).
+ */
+int ZB_PreferCamtFor(int transactionJobs);
 
 /*
  * Asks the bank for the SEPA details of the account's user if the account has no

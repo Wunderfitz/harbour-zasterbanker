@@ -149,8 +149,8 @@
         <location filename="../src/BankingThread.cpp" line="415"/>
         <location filename="../src/BankingThread.cpp" line="542"/>
         <location filename="../src/BankingThread.cpp" line="604"/>
-        <location filename="../src/BankingThread.cpp" line="721"/>
-        <location filename="../src/BankingThread.cpp" line="767"/>
+        <location filename="../src/BankingThread.cpp" line="723"/>
+        <location filename="../src/BankingThread.cpp" line="769"/>
         <source>Banking is not available.</source>
         <translation>Das Banking ist nicht verfügbar.</translation>
     </message>
@@ -216,22 +216,22 @@
         <translation>Rufe Kontostände ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="619"/>
+        <location filename="../src/BankingThread.cpp" line="621"/>
         <source>Retrieving transactions...</source>
         <translation>Rufe Umsätze ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="678"/>
+        <location filename="../src/BankingThread.cpp" line="680"/>
         <source>The transactions could not be retrieved.</source>
         <translation>Die Umsätze konnten nicht abgerufen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="675"/>
+        <location filename="../src/BankingThread.cpp" line="677"/>
         <source>The bank&apos;s answer could not be read.</source>
         <translation>Die Antwort der Bank konnte nicht gelesen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="676"/>
+        <location filename="../src/BankingThread.cpp" line="678"/>
         <source>The bank does not offer transactions for this account.</source>
         <translation>Die Bank bietet für dieses Konto keine Umsätze an.</translation>
     </message>
@@ -241,37 +241,37 @@
         <translation>Die Bank hat keine Kontostände übermittelt.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="726"/>
+        <location filename="../src/BankingThread.cpp" line="728"/>
         <source>Retrieving holdings...</source>
         <translation>Rufe Depotbestand ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="757"/>
+        <location filename="../src/BankingThread.cpp" line="759"/>
         <source>The bank does not offer the holdings of this account.</source>
         <translation>Die Bank bietet den Bestand dieses Depots nicht an.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="758"/>
+        <location filename="../src/BankingThread.cpp" line="760"/>
         <source>The holdings could not be retrieved.</source>
         <translation>Der Depotbestand konnte nicht abgerufen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="772"/>
+        <location filename="../src/BankingThread.cpp" line="774"/>
         <source>The bank access could not be removed.</source>
         <translation>Der Bankzugang konnte nicht entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="782"/>
+        <location filename="../src/BankingThread.cpp" line="784"/>
         <source>The stored data could not be removed.</source>
         <translation>Die gespeicherten Daten konnten nicht entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="925"/>
+        <location filename="../src/BankingThread.cpp" line="927"/>
         <source>Cancelled.</source>
         <translation>Abgebrochen.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="930"/>
+        <location filename="../src/BankingThread.cpp" line="932"/>
         <source>%1 (Error %2)</source>
         <translation>%1 (Fehler %2)</translation>
     </message>

@@ -315,10 +315,21 @@ last fails, the half-made user is deleted again: nothing is left behind.
   `HKKAZ`. If not, it gives up silently, without contacting the bank. So
   `ZB_SetCamtDownload()` sets the flag before each fetch (rewriting the store
   only when it changes), and AqBanking falls back to MT940 by itself if CAMT is
-  not offered. The `xml` importer's `default.conf` and `camt_*.conf` profiles and
+  not offered (that rule has an exception, next point). The `xml` importer's `default.conf` and `camt_*.conf` profiles and
   its `camt_*.xml` schemas are installed for this. **The `camt_*.conf` files are
   not optional:** AqBanking derives the formats it can offer the bank from those
   file names, and without them drops the CAMT job as silently as the MT940 one.
+- **No CAMT where the account's UPD lists only another job** (found
+  2026-11-11 on a Postbank credit card: 9050, 9010, 9210 "Keine Daten zur
+  übermittelten Auftragsreferenz vorhanden"). AqBanking chooses the balance job
+  and the MT940 one by the jobs the account's UPD lists (a credit card's are
+  `DKKKS` and `DKKKU`, or `HKKKS` and `HKKKU`), but creates the CAMT job by the
+  bank's parameters (BPD) alone, so with the flag set, a credit card got a CAMT
+  request. GnuCash and KMyMoney users do not tick CAMT for a credit card. So
+  `ZB_PreferCamtFor()` sets the flag unless the UPD lists another job for
+  transactions but not `HKCAZ`: a UPD that lists `HKCAZ`, or no such job at all
+  (Atruvia lists no `HKKAZ`), still means CAMT. A bank whose UPD lists `HKKAZ`
+  but not `HKCAZ` gets MT940 directly, as in GnuCash and KMyMoney by default.
 - **MT940 again when CAMT brings nothing** (decided 2026-11-11, for comdirect;
   see [Verification status](#verification-status)). If the CAMT request is
   accepted without a single transaction and the account's UPD lists `HKKAZ`,
@@ -326,8 +337,8 @@ last fails, the half-made user is deleted again: nothing is left behind.
   if it holds transactions, otherwise the result stays "no transactions".
   `ZB_TransactionJobs()` tells beforehand which of the two jobs the bank's
   parameters offer, by creating them as AqBanking would, without sending
-  anything. The flag stays cleared until the next fetch sets it again, so
-  every fetch tries CAMT first. This is the app's answer to what GnuCash and
+  anything, and whether the UPD lists `HKCAZ`. The flag stays cleared until the
+  next fetch sets it again, so every fetch decides afresh. This is the app's answer to what GnuCash and
   KMyMoney leave to the user: their AqBanking asks for MT940 unless the user
   ticks "Prefer Statement Download as CAMT" per account, which they do where
   the bank no longer offers MT940 (Atruvia since November 2025). The
@@ -632,7 +643,8 @@ checked on every push.
   choice of balance), the TAN methods the shim lists from made-up bank
   parameters (whether a TAN medium is required, in both of HKTAN's field
   names) and the TAN medium it stores, the jobs for transactions it finds for
-  made-up accounts (CAMT, and MT940 only where the UPD lists `HKKAZ`) and the
+  made-up accounts (CAMT, MT940 or a credit card's job only where the UPD lists
+  it, and whether it lists `HKCAZ`), the choice of CAMT from those, and the
   CAMT flag it sets and clears, the models, and the bank search on the
   made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
@@ -866,6 +878,15 @@ project unless the owner says so.
   CAMT. So the app now asks again for MT940 when CAMT brings nothing (see
   [Transactions](#transactions)), in the test build `0.5.0-0.202611111919` for the
   tester; its result is awaited.
+- 2026-11-11, real bank, tester: **a Postbank credit card's transactions fail**
+  with `9050 - Teilweise fehlerhaft. (M)`, `9010 - Verarbeitung nicht möglich.
+  (S)` and `9210 - Keine Daten zur übermittelten Auftragsreferenz vorhanden.
+  (S)`, after the dialog's own lines (including 1040 and 1050, new BPD and UPD).
+  From AqBanking's source, the app had it send a CAMT request for the card,
+  which the card's UPD does not list; fixed by the rule in
+  [Transactions](#transactions), which sends `DKKKU` (or what the UPD lists)
+  instead. Whether Postbank's answer to that reads correctly is untested: the
+  engine tests only check which job is chosen.
 - 2026-11-09, real banks, testers: **Deutsche Bank and Postbank fail with
   BestSign** (`fints.deutsche-bank.de`, `hbci.postbank.de`). Setting up the
   access stops right after choosing BestSign, with "HBCI: 9999 - Dialog

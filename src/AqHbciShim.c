@@ -28,6 +28,7 @@
 #include "aqhbci/banking/account.h"
 #include "aqhbci/banking/provider_online.h"
 #include "aqhbci/banking/user.h"
+#include "aqhbci/banking/user_l.h"
 #include "aqhbci/ajobs/jobgettrans_camt_l.h"
 #include "aqhbci/ajobs/jobgettransactions_l.h"
 #include "aqhbci/joblayer/job_l.h"
@@ -38,6 +39,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 
 #define ZB_AQHBCI_BACKEND "aqhbci"
 #define ZB_HBCI_VERSION_300 300
@@ -376,6 +378,28 @@ int ZB_SetCamtDownload(AB_BANKING *ab, uint32_t accountUid, int prefer)
     return rv;
 }
 
+/* As AqBanking reads the UPD for its jobs (jobgettransactions.c, jobgetbalance.c). */
+static int updListsJob(const AB_USER *user, const AB_ACCOUNT *account, const char *code)
+{
+    GWEN_DB_NODE *upd = AH_User_GetUpdForAccount(user, account);
+    GWEN_DB_NODE *job;
+
+    for (job = upd ? GWEN_DB_GetFirstGroup(upd) : NULL; job; job = GWEN_DB_GetNextGroup(job)) {
+        if (strcasecmp(GWEN_DB_GetCharValue(job, "job", 0, ""), code) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+int ZB_PreferCamtFor(int transactionJobs)
+{
+    if (transactionJobs < 0) {
+        return 1;
+    }
+    return !(transactionJobs & ZB_TRANSACTION_JOB_OTHER) || (transactionJobs & ZB_TRANSACTION_JOB_CAMT_LISTED);
+}
+
 int ZB_TransactionJobs(AB_BANKING *ab, uint32_t accountUid)
 {
     AB_PROVIDER *pro;
@@ -406,6 +430,7 @@ int ZB_TransactionJobs(AB_BANKING *ab, uint32_t accountUid)
             rv |= ZB_TRANSACTION_JOB_OTHER;
             AH_Job_free(job);
         }
+        rv |= updListsJob(user, account, "HKCAZ") ? ZB_TRANSACTION_JOB_CAMT_LISTED : 0;
     }
     if (user) {
         AB_User_free(user);

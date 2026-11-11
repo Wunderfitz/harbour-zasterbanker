@@ -606,14 +606,16 @@ void BankingThread::executeFetchTransactions(const Command &command)
     }
     const uint accountId = command.arguments.value(QStringLiteral("accountId")).toUInt();
 
-    // CAMT first: some banks no longer offer MT940 at all.
+    // CAMT first, as some banks no longer offer MT940 at all; but not where the
+    // account's UPD lists only another job, such as a credit card's.
     const int jobs = ZB_TransactionJobs(banking, accountId);
     if (jobs < 0) {
         qWarning() << "Could not tell which jobs the bank offers for this account" << jobs;
     }
-    const int preferred = ZB_SetCamtDownload(banking, accountId, 1);
+    const bool camtFirst = ZB_PreferCamtFor(jobs);
+    const int preferred = ZB_SetCamtDownload(banking, accountId, camtFirst ? 1 : 0);
     if (preferred < 0) {
-        qWarning() << "Could not prefer CAMT for this account" << preferred;
+        qWarning() << "Could not set the CAMT preference for this account" << preferred;
     }
 
     reportProgress(tr("Retrieving transactions..."));
@@ -640,7 +642,7 @@ void BankingThread::executeFetchTransactions(const Command &command)
     // the bank offers it. comdirect rejects the CAMT request's account with 3010,
     // the code for "no entries" (2026-11-11), and GnuCash and KMyMoney users never
     // see that, as their AqBanking only asks for CAMT where they switch it on.
-    if (success && transactions.isEmpty() && jobs >= 0
+    if (success && transactions.isEmpty() && camtFirst && jobs >= 0
             && (jobs & ZB_TRANSACTION_JOB_CAMT) && (jobs & ZB_TRANSACTION_JOB_OTHER)) {
         const int cleared = ZB_SetCamtDownload(banking, accountId, 0);
         if (cleared < 0) {
