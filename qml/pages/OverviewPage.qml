@@ -141,7 +141,7 @@ Page {
                 id: bankHeader
 
                 visible: accountRow.firstOfBank
-                contentHeight: bankHeaderLabel.height
+                contentHeight: bankHeaderColumn.height
                 enabled: !banking.busy
                 menu: ContextMenu {
                     MenuItem {
@@ -174,30 +174,28 @@ Page {
                     }
                 }
 
-                // How long the access's PIN is still remembered, if it is.
-                Label {
-                    id: pinLabel
+                Column {
+                    id: bankHeaderColumn
 
-                    readonly property real timeLeft: overviewPage.pinTimeLeft(bankAccessId)
+                    width: parent.width
 
-                    x: Theme.horizontalPageMargin
-                    anchors.verticalCenter: bankHeaderLabel.verticalCenter
-                    visible: timeLeft > 0
-                    font.pixelSize: Theme.fontSizeExtraSmall
-                    color: Theme.secondaryHighlightColor
-                    text: qsTr("PIN remembered %1").arg(Format.countdown(timeLeft))
-                }
-
-                // its own margins, as without the countdown
-                SectionHeader {
-                    id: bankHeaderLabel
-                    anchors {
-                        right: parent.right
-                        rightMargin: Theme.horizontalPageMargin
+                    SectionHeader {
+                        text: bankName
                     }
-                    width: parent.width - 2 * Theme.horizontalPageMargin
-                           - (pinLabel.visible ? pinLabel.width + Theme.paddingMedium : 0)
-                    text: bankName
+
+                    // How long the access's PIN is still remembered, if it is:
+                    // below the name, and quieter.
+                    Label {
+                        readonly property real timeLeft: overviewPage.pinTimeLeft(bankAccessId)
+
+                        x: Theme.horizontalPageMargin
+                        width: parent.width - 2 * Theme.horizontalPageMargin
+                        visible: timeLeft > 0
+                        horizontalAlignment: Text.AlignRight
+                        font.pixelSize: Theme.fontSizeExtraSmall
+                        color: bankHeader.highlighted ? Theme.secondaryHighlightColor : Theme.secondaryColor
+                        text: qsTr("PIN remembered %1").arg(Format.countdown(timeLeft))
+                    }
                 }
             }
 

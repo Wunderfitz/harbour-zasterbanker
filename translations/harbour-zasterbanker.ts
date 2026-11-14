@@ -631,52 +631,52 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="188"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="197"/>
         <source>PIN remembered %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="218"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="216"/>
         <source>No accounts. Press and hold the bank&apos;s name to update the accounts or to remove the bank access.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="264"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="262"/>
         <source>Account %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="315"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="313"/>
         <source>No bank access yet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="316"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="314"/>
         <source>Pull down to add your bank</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="321"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="319"/>
         <source>Stored data unreadable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="321"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="319"/>
         <source>Banking unavailable</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="323"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="321"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="324"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="322"/>
         <source>Pull down to try again, or to delete all data and start afresh.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="346"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="344"/>
         <source>Unlocking your data...</source>
         <translation type="unfinished"></translation>
     </message>

@@ -647,8 +647,9 @@ the transactions page, which a depot has no use for.
     removed or all data is reset (all PINs), and when the app ends.
   - The PIN dialog says so.
   - **The overview shows how long each PIN is still kept** (added 2026-11-15
-    on a tester's request): "PIN remembered 4:07" left of the bank's name,
-    counting down. After every command, and whenever one is wiped,
+    on a tester's request): "PIN remembered 4:07" below the bank's name,
+    right-aligned and in the secondary colour so as not to draw the eye
+    (project owner, 2026-11-15), counting down. After every command, and whenever one is wiped,
     `BankingThread::publishPins()` maps `GwenGui::rememberedPins()` (token and
     time left, only PINs the bank accepted and no command is using) to bank
     accesses by AqBanking's token name, `PIN_<bank code>_<login>`, and hands
@@ -1186,8 +1187,9 @@ project unless the owner says so.
   message dialog with one answer), the German title being recognised on a
   phone, and a real bank's approval.
 - 2026-11-15, engine tests and emulator (5.1, sample accounts and a PIN
-  deadline patched into the QML, real touch input): the countdown next to the
-  bank's name runs and leaves the bank names their margins, "Forget PINs now"
+  deadline patched into the QML, real touch input): the countdown below the
+  bank's name runs (moved there from beside it the same day and checked again,
+  the bank's context menu still opening below it), "Forget PINs now"
   appears while a PIN is kept and removes the countdown, and the TAN dialog for
   a numeric method opens the digit keyboard; "+/-" and "." mark the entry as an
   error and disable Accept until removed. Not seen: real PINs counting down
