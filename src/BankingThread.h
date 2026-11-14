@@ -63,7 +63,8 @@ public:
         ResetData,
         FetchTransactions,
         FetchHoldings,
-        RetrieveAccounts
+        UpdateBankAccess,
+        ChangeTanMethod
     };
 
     enum InitializationResult {
@@ -97,8 +98,14 @@ public:
     void fetchTransactions(uint accountId);
     void fetchHoldings(uint accountId);
     void removeBankAccess(uint bankAccessId);
-    /* Asks the bank for the access's accounts again, then for their balances. */
-    void retrieveAccounts(uint bankAccessId);
+    /*
+     * Asks the bank afresh for its parameters and the access's accounts with
+     * theirs (BPD and UPD), offers to remove accounts the bank no longer
+     * lists, then asks for the balances.
+     */
+    void updateBankAccess(uint bankAccessId);
+    /* Lets the user choose another of the TAN methods the bank allows, and the TAN medium's name with it. */
+    void changeTanMethod(uint bankAccessId);
     void resetData();
     void respond(int interactionId, bool accepted, const QString &text, int choice);
     void cancelInteraction();
@@ -107,9 +114,11 @@ public:
     QString dataFilePath() const;
 
     /* Banking thread, called from GwenGui */
+    /* presetText: what a text field starts with (TextInteraction) */
     Response requestInteraction(InteractionType type, const QString &title, const QString &text,
                                 const QStringList &choices = QStringList(),
-                                const QByteArray &image = QByteArray(), const QString &mimeType = QString());
+                                const QByteArray &image = QByteArray(), const QString &mimeType = QString(),
+                                const QString &presetText = QString());
     void reportProgress(const QString &text);
     void reportError(const QString &text);
     bool isCancelled() const;
@@ -127,7 +136,7 @@ signals:
     void progress(const QString &text);
     /* A challenge image (photoTAN, QR-TAN) arrives decoded, as decoding is this thread's job too. */
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
-                              const QStringList &choices, const QImage &image);
+                              const QStringList &choices, const QImage &image, const QString &presetText);
     void interactionFinished(int interactionId);
 
 protected:
@@ -151,13 +160,21 @@ private:
     int requestTransactions(uint32_t accountId, QVariantList *transactions, bool *hasAnswer, bool *jobFailed);
     void executeFetchHoldings(const Command &command);
     void executeRemoveBankAccess(const Command &command);
-    void executeRetrieveAccounts(const Command &command);
+    void executeUpdateBankAccess(const Command &command);
+    /* Asks whether to remove the accounts the bank no longer lists, and does so. */
+    void offerToRemoveAccounts(const QList<uint32_t> &accountIds);
+    void executeChangeTanMethod(const Command &command);
     /* The bank's result lines are kept from the first call to the second, and handed to the UI then. */
     void startCollectingBankMessages();
     void reportBankMessages();
     void executeResetData();
-    bool chooseTanMethod(uint32_t userUid);
-    bool chooseTanMedium(uint32_t userUid);
+    /*
+     * At setup, the user chooses if there is more than one method; when
+     * changing, always, with the current one named, and the TAN medium's
+     * current name in its field.
+     */
+    bool chooseTanMethod(uint32_t userUid, bool change = false);
+    bool chooseTanMedium(uint32_t userUid, const QString &current = QString());
     void collectBankMessage(const QString &text);
     void publishAccounts();
     void loadStoredBalances();

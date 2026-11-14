@@ -32,6 +32,8 @@ Dialog {
     property string message
     property var choices
     property string imageUrl
+    // what the text field starts with, e.g. the TAN medium's current name
+    property string presetText
     property bool secret: true
     property bool answered: false
 
@@ -114,6 +116,7 @@ Dialog {
                 width: parent.width
                 visible: !pinDialog.secret
                 focus: !pinDialog.secret
+                text: pinDialog.secret ? "" : pinDialog.presetText
                 label: pinDialog.heading
                 // What the bank asks for has to match exactly, capitals included.
                 inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase

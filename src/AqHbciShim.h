@@ -27,8 +27,8 @@
  *
  * AqBanking's own aqhbci-tool4 does the same through its "control" commands;
  * the functions here follow those commands (adduser, getsysid, getaccounts,
- * listitanmodes, setitanmode, deluser) line by line, but report structured
- * results instead of printing them. They use aqhbci's internal headers, which
+ * listitanmodes, setitanmode, settanmediumid, delaccount, deluser) line by
+ * line, but report structured results instead of printing them. They use aqhbci's internal headers, which
  * is possible because AqBanking is linked statically - and which means this
  * file has to be checked against the control commands whenever AqBanking is
  * upgraded.
@@ -38,6 +38,7 @@
  */
 
 #include <aqbanking/banking.h>
+#include <gwenhywfar/db.h>
 
 #include <stdint.h>
 
@@ -74,13 +75,40 @@ int ZB_GetSysId(AB_BANKING *ab, uint32_t uid);
 /*
  * Fetches the accounts the bank lists for the user and adds them to AqBanking,
  * and returns how many accounts the user has then (or an error).
- * - It asks for the whole account list (UPD version 0): AqBanking sends the UPD
- *   version it has, and a bank that thinks it current sends no accounts.
+ * - It asks for the bank's parameters (BPD) and the whole account list with the
+ *   user's parameters (UPD) afresh, version 0 both, as AH_Provider_GetAccounts()
+ *   does: AqBanking otherwise sends the versions it has, and a bank that thinks
+ *   them current sends neither. The answer also brings the TAN methods the bank
+ *   allows the user now (3920).
  * - If the list holds no accounts, it asks for the accounts' SEPA details
  *   (HKSPA, as "aqhbci-tool4 getaccsepa" and python-fints do), from whose
  *   answer AqBanking adds accounts as well; that request failing is no error.
+ * - AqBanking only ever adds and updates accounts. If unlisted is given, it
+ *   receives up to maxUnlisted unique IDs of the user's accounts that the
+ *   bank's list did not name, and *pUnlistedCount their number: always none if
+ *   the list named no account at all, or if the request failed.
  */
-int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid);
+int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid, uint32_t *unlisted, int maxUnlisted, int *pUnlistedCount);
+
+/*
+ * The accounts the account list segments (HIUPD, "AccountData") among a job's
+ * responses name, as the unique IDs of the stored accounts AqBanking matches
+ * them with (IBAN first, then bank code, account number and suffix, each with
+ * the account type, as jobqueue_account.c does), 0 where none matches. Returns
+ * how many such segments there are; more than maxListed is an error.
+ */
+int ZB_ListedAccounts(AB_BANKING *ab, GWEN_DB_NODE *responses, uint32_t *listed, int maxListed);
+
+/*
+ * The user's accounts that are not among the listedCount IDs in listed, up to
+ * maxUnlisted of them; returns their number. None if listedCount < 1: an empty
+ * list says nothing about which accounts the bank still has.
+ */
+int ZB_UnlistedAccounts(AB_BANKING *ab, uint32_t uid, const uint32_t *listed, int listedCount,
+                        uint32_t *unlisted, int maxUnlisted);
+
+/* Deletes one account, as AqBanking would with the user deleted. */
+int ZB_DeleteAccount(AB_BANKING *ab, uint32_t accountUid);
 
 /* How many accounts AqBanking has for the user. */
 int ZB_CountAccounts(AB_BANKING *ab, uint32_t uid);
@@ -88,6 +116,8 @@ int ZB_CountAccounts(AB_BANKING *ab, uint32_t uid);
 int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int maxMethods);
 int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId);
 int ZB_SetTanMediumId(AB_BANKING *ab, uint32_t uid, const char *tanMediumId);
+/* The name of the TAN medium stored for the user into buffer, "" if there is none. */
+int ZB_GetTanMediumId(AB_BANKING *ab, uint32_t uid, char *buffer, int size);
 
 int ZB_ListUsers(AB_BANKING *ab, ZB_USER_INFO *users, int maxUsers);
 int ZB_GetAccountUser(AB_BANKING *ab, uint32_t accountUid, uint32_t *pUserUid);

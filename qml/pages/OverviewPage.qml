@@ -30,20 +30,20 @@ Page {
     allowedOrientations: Orientation.All
 
     property string lastError
-    // what the bank said when retrieving the accounts of an access failed
+    // what the bank said when updating the accounts of an access failed
     property var bankMessages: []
 
     readonly property bool ready: banking.state === Banking.Ready
     readonly property bool refreshing: banking.busy && (banking.operation === Banking.FetchingBalances
-                                                        || banking.operation === Banking.RetrievingAccounts)
+                                                        || banking.operation === Banking.UpdatingBankAccess)
 
     Connections {
         target: banking
         onOperationFinished: {
             if (operation === Banking.FetchingBalances || operation === Banking.RemovingBankAccess
-                    || operation === Banking.RetrievingAccounts) {
+                    || operation === Banking.UpdatingBankAccess || operation === Banking.ChangingTanMethod) {
                 overviewPage.lastError = success ? "" : message
-                overviewPage.bankMessages = !success && operation === Banking.RetrievingAccounts
+                overviewPage.bankMessages = !success && operation === Banking.UpdatingBankAccess
                         ? banking.bankMessages : []
             }
         }
@@ -128,11 +128,17 @@ Page {
                         enabled: !banking.busy
                         onClicked: banking.refreshBankAccess(bankAccessId)
                     }
+                    // The bank's parameters, the accounts and theirs, and the TAN
+                    // methods it allows: in AqBanking all one request.
                     MenuItem {
-                        text: qsTr("Retrieve accounts")
-                        visible: noAccounts
+                        text: qsTr("Update accounts and bank data")
                         enabled: !banking.busy
-                        onClicked: banking.retrieveAccounts(bankAccessId)
+                        onClicked: banking.updateBankAccess(bankAccessId)
+                    }
+                    MenuItem {
+                        text: qsTr("Change TAN method")
+                        enabled: !banking.busy
+                        onClicked: banking.changeTanMethod(bankAccessId)
                     }
                     MenuItem {
                         text: qsTr("Remove this bank access")
@@ -166,7 +172,7 @@ Page {
                     wrapMode: Text.Wrap
                     font.pixelSize: Theme.fontSizeSmall
                     color: Theme.secondaryHighlightColor
-                    text: qsTr("No accounts. Press and hold the bank's name to retrieve them again or to remove the bank access.")
+                    text: qsTr("No accounts. Press and hold the bank's name to update the accounts or to remove the bank access.")
                 }
             }
 

@@ -230,8 +230,11 @@ AqBanking's public API covers accounts and jobs (balances, later transactions
 and transfers), but setting up a FinTS user is only offered as the "control"
 commands of `aqhbci-tool4`, which print to the terminal.
 `src/AqHbciShim.c` does what those commands do - adduser, getsysid,
-getaccounts, listitanmodes, setitanmode, settanmediumid, deluser - line by line after them,
-but with structured results. It includes aqhbci's internal headers, copied
+getaccounts, listitanmodes, setitanmode, settanmediumid, delaccount, deluser -
+line by line after them, but with structured results. For getaccounts it goes
+one level deeper and does what `AH_Provider_GetAccounts()` does step by step,
+to read the bank's account list from the job's answer before it is freed (see
+[Updating a bank access](#updating-a-bank-access)). It includes aqhbci's internal headers, copied
 from AqBanking's source tree by `build-deps.sh`, which works because AqBanking
 is linked statically.
 **When upgrading AqBanking, compare the shim with the control commands in
@@ -241,7 +244,8 @@ is linked statically.
 
 - `BankingThread` (`src/BankingThread.*`, a `QThread` with `run()`) owns
   AqBanking and works off a queue of commands one at a time: initialise, add
-  a bank access, fetch balances, fetch transactions, fetch holdings, remove a bank access, reset. AqBanking is
+  a bank access, fetch balances, fetch transactions, fetch holdings, update a
+  bank access, change its TAN method, remove a bank access, reset. AqBanking is
   synchronous and not thread-safe, so nothing else touches it.
 - AqBanking asks for PIN, TAN or a choice by calling Gwenhywfar's GUI layer
   in the middle of a FinTS dialog. `GwenGui` (`src/GwenGui.*`) implements that
@@ -311,8 +315,46 @@ last fails, the half-made user is deleted again: nothing is left behind.
   user types it, in the existing text dialog, as AqBanking cannot fetch the list
   of media (`HKTAB`); adding that job would mean implementing protocol
   ourselves. Up to 32 characters, as FinTS allows; capitals count, so the field
-  does not capitalise. It cannot be changed afterwards yet, other than by
-  setting the access up again.
+  does not capitalise. It is changed with the TAN method (see
+  [Updating a bank access](#updating-a-bank-access)).
+
+### Updating a bank access
+
+Decided 2026-11-14 by the project owner: two entries in the bank access's
+context menu, "Update accounts and bank data" and "Change TAN method", for
+every access.
+
+- **One request updates the bank parameters (BPD), the accounts and their
+  parameters (UPD) and the TAN methods**, which is why it is one entry and not
+  two (an "update BPD/UPD" and a "re-sync accounts" were asked for): in
+  AqBanking, the account list request (`AH_Job_UpdateBank`, `aqhbci-tool4
+  getaccounts`, GnuCash's "Get account list") opens its dialog with BPD and UPD
+  version 0, so the bank sends both in full, and the dialog's answer names the
+  TAN methods it allows the user now (3920). It is `ZB_GetAccounts()`, as at
+  setup, `HKSPA` fallback included, then the access's balances
+  (`UpdateBankAccess`). It replaces "Retrieve accounts" of an access without
+  accounts.
+- **Accounts the bank no longer lists are offered for removal**, not removed
+  silently and not kept silently (project owner's choice). AqBanking only adds
+  and updates accounts (`jobqueue_account.c`), so a closed account would stay
+  forever. `ZB_GetAccounts()` reads the account list segments (HIUPD) of the
+  job's answer and matches them with the stored accounts as AqBanking does
+  (`ZB_ListedAccounts()`); the access's accounts that none matched
+  (`ZB_UnlistedAccounts()`) are named in a message, "Remove" deletes them
+  (`ZB_DeleteAccount()`), "Keep" or backing out leaves them. Never if the list
+  named no account at all: an empty answer (the Sparkasse case) says nothing
+  about which are gone. The stored UPD cannot tell, as AqBanking never deletes
+  an account's entry in it. The names in the message are escaped, as it is
+  styled text.
+- **The TAN method is changed without contacting the bank** (project owner's
+  choice): the choice offers the methods the bank allowed at the last contact,
+  which every dialog renews, naming the current one, and says to update first if
+  one is missing. That still works when the current method no longer works at
+  the bank, where connecting first could fail. Afterwards, the TAN medium's name
+  is asked for if the chosen method requires one, with the current name in the
+  field, which also covers changing only the name; a method that allows no name
+  clears it, an optional one keeps it. Method names are the bank's text, so the
+  choice dialog shows them as plain text.
 
 ### Overview page
 
@@ -320,10 +362,10 @@ last fails, the half-made user is deleted again: nothing is left behind.
   [Setting up a bank access](#setting-up-a-bank-access)): `publishAccounts()`
   lists it as an entry of its own (`accountId` 0, role `noAccounts`), which
   shows the bank's name, a hint instead of an account, and no total, and stays
-  off the cover. Its name's menu has "Retrieve accounts" (`RetrieveAccounts`,
-  `ZB_GetAccounts()` again, then its balances) instead of "Refresh balances",
-  and "Remove this bank access". If retrieving fails, the pull-down menu has
-  the bank's messages. This also reaches accesses set up before setup failed
+  off the cover. Its name's menu has no "Refresh balances", but "Update
+  accounts and bank data" (see
+  [Updating a bank access](#updating-a-bank-access)) as every access does. If
+  that fails, the pull-down menu has the bank's messages. This also reaches accesses set up before setup failed
   on no accounts.
 
 - **Sections are bank accesses**, keyed by `bankAccessId` rather than the bank
@@ -665,6 +707,12 @@ One qmake project at the root, as in Fernschreiber and Chronograph: `src/`,
 
   Launch it from SSH as the launcher would:
   `sailjail -p harbour-zasterbanker.desktop /usr/bin/harbour-zasterbanker`.
+  **After the emulator's restart, start it from its icon instead** (found
+  2026-11-14): started from an SSH session, the request for the key fails at
+  once with "Password Agent was unable to verify the authenticity of the user",
+  without the system dialog, as polkit finds no active session to ask in; from
+  the icon, the dialog comes. Once confirmed, SSH launches work until the next
+  restart.
   A screenshot is `VBoxManage controlvm SailfishOS-5.1.0.11 screenshotpng <file>`,
   typing into the focused field `VBoxManage controlvm SailfishOS-5.1.0.11
   keyboardputstring <text>`. A real tap or long press goes through VirtualBox's
@@ -715,7 +763,9 @@ checked on every push.
   and bank code without IBAN), the CAMT flag it sets and clears, the PIN as
   AqBanking's message engine writes it into the signature (`HNSHA`: escaped,
   ISO 8859-1, and UTF-8 umlauts over the 35 bytes failing as on the phone),
-  the accounts it counts per user, the models (a bank access without accounts
+  the accounts it counts per user, which stored accounts a made-up account
+  list names (by IBAN, by account number, none, a different account type) and
+  which it no longer does, removing one, the models (a bank access without accounts
   included), and the bank search on the made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from a 4.6 build
@@ -1014,6 +1064,21 @@ project unless the owner says so.
     profile (patch above, the only way names arrive without an amount); the
     statement itself was not seen. Fixed by that patch, untested at comdirect.
   - **The PIN with umlauts and special characters works** (ISO 8859-1).
+- 2026-11-14, engine tests and emulator (5.1, sample accounts patched into the
+  QML, real touch input): updating a bank access and changing the TAN method
+  (see [Updating a bank access](#updating-a-bank-access)). The engine tests
+  cover the matching of a made-up account list, the accounts it no longer names
+  and removing one. On the emulator, the bank access's menu has "Refresh
+  balances", "Update accounts and bank data", "Change TAN method" and "Remove
+  this bank access", without the first for an access without accounts; both
+  new entries ran the real commands, which, for an access AqBanking does not
+  know, ended in the "no TAN method" message and in "The bank did not list your
+  accounts. (Error -51)". The three dialogs were shown with sample content as
+  the banking thread words it: the method choice with markup in a method name
+  shown literally, the TAN medium's field with the current name in it, and the
+  removal question with "Remove" and "Keep" and an escaped name shown
+  literally. Not seen: the dialogs with a real bank's data, the removal
+  itself, and anything on a bank.
 - Not verified yet: data centres or private banks besides Atruvia, the
   Sparkassen and the DKB, the other TAN methods (as far as is known), removing a bank access,
   and the reset after an unreadable store (`DataUnreadable`; the reset after a

@@ -31,6 +31,7 @@ Dialog {
     property string message
     property var choices: []
     property string imageUrl
+    property string presetText
     property int selectedIndex: -1
     property bool answered: false
 
@@ -78,6 +79,8 @@ Dialog {
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 wrapMode: Text.Wrap
                 color: Theme.highlightColor
+                // names the bank's TAN methods
+                textFormat: Text.PlainText
                 text: choiceDialog.message
             }
 
@@ -97,6 +100,8 @@ Dialog {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
                 anchors.verticalCenter: parent.verticalCenter
+                // the bank's name for the method
+                textFormat: Text.PlainText
                 text: modelData
                 color: choiceItem.highlighted ? Theme.highlightColor : Theme.primaryColor
                 truncationMode: TruncationMode.Fade

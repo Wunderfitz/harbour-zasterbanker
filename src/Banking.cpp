@@ -148,10 +148,17 @@ void Banking::fetchHoldings(int accountId)
     }
 }
 
-void Banking::retrieveAccounts(int bankAccessId)
+void Banking::updateBankAccess(int bankAccessId)
 {
     if (currentState == Ready && !busy()) {
-        thread.retrieveAccounts(static_cast<uint>(bankAccessId));
+        thread.updateBankAccess(static_cast<uint>(bankAccessId));
+    }
+}
+
+void Banking::changeTanMethod(int bankAccessId)
+{
+    if (currentState == Ready && !busy()) {
+        thread.changeTanMethod(static_cast<uint>(bankAccessId));
     }
 }
 
@@ -266,10 +273,10 @@ void Banking::handleBankMessages(const QStringList &messages)
 }
 
 void Banking::handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
-                                         const QStringList &choices, const QImage &image)
+                                         const QStringList &choices, const QImage &image, const QString &presetText)
 {
     const QString imageUrl = image.isNull() ? QString() : tanImageProvider->setImage(image);
-    emit interactionRequested(interactionId, type, title, text, choices, imageUrl);
+    emit interactionRequested(interactionId, type, title, text, choices, imageUrl, presetText);
 }
 
 void Banking::handleInteractionFinished(int interactionId)

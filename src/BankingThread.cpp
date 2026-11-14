@@ -70,6 +70,8 @@ const int MAX_TAN_METHODS = 32;
 // FinTS allows 32 characters for the name of a TAN medium.
 const int MAX_TAN_MEDIUM_LENGTH = 32;
 const int MAX_USERS = 64;
+// Accounts the bank no longer lists, asked about at once.
+const int MAX_UNLISTED_ACCOUNTS = 64;
 
 void wipe(QByteArray &data)
 {
@@ -155,10 +157,18 @@ void BankingThread::fetchHoldings(uint accountId)
     enqueue(command);
 }
 
-void BankingThread::retrieveAccounts(uint bankAccessId)
+void BankingThread::updateBankAccess(uint bankAccessId)
 {
     Command command;
-    command.type = RetrieveAccounts;
+    command.type = UpdateBankAccess;
+    command.arguments.insert(QStringLiteral("bankAccessId"), bankAccessId);
+    enqueue(command);
+}
+
+void BankingThread::changeTanMethod(uint bankAccessId)
+{
+    Command command;
+    command.type = ChangeTanMethod;
     command.arguments.insert(QStringLiteral("bankAccessId"), bankAccessId);
     enqueue(command);
 }
@@ -221,7 +231,7 @@ bool BankingThread::isCancelled() const
 
 BankingThread::Response BankingThread::requestInteraction(InteractionType type, const QString &title, const QString &text,
                                                           const QStringList &choices, const QByteArray &image,
-                                                          const QString &mimeType)
+                                                          const QString &mimeType, const QString &presetText)
 {
     Response response;
     response.accepted = false;
@@ -250,7 +260,7 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
         interactionAnswered = false;
     }
 
-    emit interactionRequested(interactionId, type, title, text, choices, decodedImage);
+    emit interactionRequested(interactionId, type, title, text, choices, decodedImage, presetText);
 
     {
         QMutexLocker locker(&mutex);
@@ -358,8 +368,11 @@ void BankingThread::run()
         case RemoveBankAccess:
             executeRemoveBankAccess(command);
             break;
-        case RetrieveAccounts:
-            executeRetrieveAccounts(command);
+        case UpdateBankAccess:
+            executeUpdateBankAccess(command);
+            break;
+        case ChangeTanMethod:
+            executeChangeTanMethod(command);
             break;
         case ResetData:
             executeResetData();
@@ -465,7 +478,7 @@ void BankingThread::executeAddBankAccess(const Command &command)
     }
 
     reportProgress(tr("Retrieving your accounts..."));
-    rv = ZB_GetAccounts(banking, uid);
+    rv = ZB_GetAccounts(banking, uid, nullptr, 0, nullptr);
     // A bank access without accounts would be of no use (found 2026-11-11 at a
     // Sparkasse: the setup went through, and no account came).
     if (rv <= 0) {
@@ -487,7 +500,7 @@ void BankingThread::executeAddBankAccess(const Command &command)
     emit commandFinished(AddBankAccess, true, QString());
 }
 
-bool BankingThread::chooseTanMethod(uint32_t userUid)
+bool BankingThread::chooseTanMethod(uint32_t userUid, bool change)
 {
     ZB_TAN_METHOD methods[MAX_TAN_METHODS];
     const int count = ZB_ListTanMethods(banking, userUid, methods, MAX_TAN_METHODS);
@@ -500,18 +513,37 @@ bool BankingThread::chooseTanMethod(uint32_t userUid)
     // None means the bank does without two-step TANs for this user; AqBanking
     // then sticks to the single-step procedure on its own.
     if (allowed.isEmpty()) {
+        if (change) {
+            const Response response = requestInteraction(MessageInteraction, tr("TAN method"),
+                                                         tr("Your bank named no TAN method for this access at the last contact. "
+                                                            "Update the accounts and bank data to ask it again."));
+            return response.accepted;
+        }
         return true;
     }
 
     int chosen = 0;
-    if (allowed.size() > 1) {
+    if (allowed.size() > 1 || change) {
         QStringList names;
+        QString current;
         for (const ZB_TAN_METHOD &method : allowed) {
             names.append(QString::fromUtf8(method.name));
+            if (method.selected) {
+                current = QString::fromUtf8(method.name);
+            }
         }
-        const Response response = requestInteraction(ChoiceInteraction, tr("TAN method"),
-                                                     tr("Your bank offers several ways to confirm with a TAN. Which one do you use?"),
-                                                     names);
+        QString text;
+        if (change) {
+            // Offered from what the bank allowed at the last contact, which every
+            // contact renews: no connection, so it works even if the current
+            // method no longer does.
+            text = (current.isEmpty() ? QString() : tr("You currently use %1.").arg(current) + QLatin1Char(' '))
+                    + tr("Which of the TAN methods your bank allows for this access do you want to use? "
+                         "If one is missing, update the accounts and bank data first.");
+        } else {
+            text = tr("Your bank offers several ways to confirm with a TAN. Which one do you use?");
+        }
+        const Response response = requestInteraction(ChoiceInteraction, tr("TAN method"), text, names);
         if (!response.accepted || response.choice < 0 || response.choice >= allowed.size()) {
             return false;
         }
@@ -520,30 +552,50 @@ bool BankingThread::chooseTanMethod(uint32_t userUid)
     const int rv = ZB_SelectTanMethod(banking, userUid, allowed.at(chosen).id);
     if (rv < 0) {
         qWarning() << "Selecting TAN method" << allowed.at(chosen).id << "failed" << rv;
+        // At setup, AqBanking goes on with the method it chose itself, as before.
+        if (change) {
+            lastError = tr("The TAN method could not be stored (%1).").arg(rv);
+            return false;
+        }
     }
-    // Only when required: an optional name the user would have to look up for nothing.
-    if (allowed.at(chosen).tanMediumNeeded == 2) {
-        return chooseTanMedium(userUid);
+
+    char medium[ZB_NAME_LENGTH];
+    const QString currentMedium = ZB_GetTanMediumId(banking, userUid, medium, sizeof(medium)) >= 0
+            ? QString::fromLatin1(medium) : QString();
+    switch (allowed.at(chosen).tanMediumNeeded) {
+    case 2:
+        // Only when required: an optional name the user would have to look up for nothing.
+        return chooseTanMedium(userUid, currentMedium);
+    case 0:
+        // The bank allows none with this method; one set for another must not go along.
+        if (!currentMedium.isEmpty() && ZB_SetTanMediumId(banking, userUid, nullptr) < 0) {
+            qWarning() << "Clearing the TAN medium failed";
+        }
+        return true;
+    default:
+        return true;
     }
-    return true;
 }
 
 // Some banks (Deutsche Bank and Postbank for BestSign, for one) want the name of
 // the device the TAN comes from with every TAN, and refuse the dialog without it.
 // AqBanking cannot ask the bank for the list of names, so the user types it.
-bool BankingThread::chooseTanMedium(uint32_t userUid)
+bool BankingThread::chooseTanMedium(uint32_t userUid, const QString &current)
 {
     QString hint;
+    QString preset = current;
     forever {
         const Response response = requestInteraction(TextInteraction, tr("TAN medium"),
                                                      hint + tr("Your bank needs the name of the device or app you confirm with. "
                                                                "You find it in the security settings of your online banking or "
                                                                "of the bank's app, e.g. under \"Sicherheitsverfahren\" for BestSign. "
-                                                               "Enter it exactly as shown there, capitals included."));
+                                                               "Enter it exactly as shown there, capitals included."),
+                                                     QStringList(), QByteArray(), QString(), preset);
         if (!response.accepted) {
             return false;
         }
         const QString name = QString::fromUtf8(response.text).trimmed();
+        preset = name;
         if (name.isEmpty() || name.length() > MAX_TAN_MEDIUM_LENGTH) {
             hint = tr("The name can have up to %1 characters.").arg(MAX_TAN_MEDIUM_LENGTH) + QLatin1Char(' ');
             continue;
@@ -557,6 +609,7 @@ bool BankingThread::chooseTanMedium(uint32_t userUid)
         const int rv = ZB_SetTanMediumId(banking, userUid, latin1.constData());
         if (rv < 0) {
             qWarning() << "Setting the TAN medium failed" << rv;
+            lastError = tr("The name of the TAN medium could not be stored (%1).").arg(rv);
             return false;
         }
         return true;
@@ -764,22 +817,34 @@ void BankingThread::executeFetchHoldings(const Command &command)
     emit commandFinished(FetchHoldings, success, message);
 }
 
-// For a bank access that has no accounts: the setup of one that brought none
-// fails, but one set up before that rule, or whose bank listed none later, is
-// shown without them, with this to try again.
-void BankingThread::executeRetrieveAccounts(const Command &command)
+// Everything about a bank access the bank decides, asked for afresh: its
+// parameters (BPD), the accounts with theirs (UPD) and the TAN methods it
+// allows. In AqBanking, that is all one request, the account list's. It also
+// brings the accounts of an access that has none, which the setup of one that
+// brought none fails on, but one set up before that rule may have.
+void BankingThread::executeUpdateBankAccess(const Command &command)
 {
-    emit commandStarted(RetrieveAccounts);
+    emit commandStarted(UpdateBankAccess);
     if (!banking) {
-        emit commandFinished(RetrieveAccounts, false, tr("Banking is not available."));
+        emit commandFinished(UpdateBankAccess, false, tr("Banking is not available."));
         return;
     }
     const uint32_t uid = command.arguments.value(QStringLiteral("bankAccessId")).toUInt();
     startCollectingBankMessages();
-    reportProgress(tr("Retrieving your accounts..."));
+    reportProgress(tr("Updating accounts and bank data..."));
     lastError.clear();
-    const int rv = ZB_GetAccounts(banking, uid);
+    uint32_t unlisted[MAX_UNLISTED_ACCOUNTS];
+    int unlistedCount = 0;
+    int rv = ZB_GetAccounts(banking, uid, unlisted, MAX_UNLISTED_ACCOUNTS, &unlistedCount);
     publishAccounts();
+    if (rv > 0 && unlistedCount > 0) {
+        QList<uint32_t> accountIds;
+        for (int i = 0; i < unlistedCount; i++) {
+            accountIds.append(unlisted[i]);
+        }
+        offerToRemoveAccounts(accountIds);
+        rv = ZB_CountAccounts(banking, uid);
+    }
     QString message;
     if (rv > 0) {
         QString balanceError;
@@ -789,7 +854,59 @@ void BankingThread::executeRetrieveAccounts(const Command &command)
                          : tr("The bank listed no accounts for this access.");
     }
     reportBankMessages();
-    emit commandFinished(RetrieveAccounts, rv > 0, message);
+    emit commandFinished(UpdateBankAccess, rv > 0, message);
+}
+
+// AqBanking keeps an account the bank no longer lists (closed, say), so the
+// user is asked. Removing one changes nothing at the bank.
+void BankingThread::offerToRemoveAccounts(const QList<uint32_t> &accountIds)
+{
+    QStringList names;
+    for (uint32_t accountId : accountIds) {
+        AB_ACCOUNT_SPEC *spec = nullptr;
+        QString name;
+        if (AB_Banking_GetAccountSpecByUniqueId(banking, accountId, &spec) >= 0 && spec) {
+            const QString accountName = QString::fromUtf8(AB_AccountSpec_GetAccountName(spec));
+            const QString iban = QString::fromUtf8(AB_AccountSpec_GetIban(spec));
+            const QString number = QString::fromUtf8(AB_AccountSpec_GetAccountNumber(spec));
+            const QString identifier = iban.isEmpty() ? number : iban;
+            name = accountName.isEmpty() || accountName == identifier
+                    ? identifier : QStringLiteral("%1 (%2)").arg(accountName, identifier);
+            AB_AccountSpec_free(spec);
+        }
+        // The dialog shows styled text, and these are the bank's names.
+        names.append((name.isEmpty() ? tr("Account %1").arg(accountId) : name).toHtmlEscaped());
+    }
+    const Response response = requestInteraction(
+                MessageInteraction, tr("Accounts no longer listed"),
+                tr("Your bank no longer lists these accounts for this access:") + QStringLiteral("<br><br>")
+                + names.join(QStringLiteral("<br>")) + QStringLiteral("<br><br>")
+                + tr("Remove them from Zaster Banker? This changes nothing at the bank."),
+                QStringList() << tr("Remove") << tr("Keep"));
+    if (!response.accepted || response.choice != 1) {
+        return;
+    }
+    for (uint32_t accountId : accountIds) {
+        const int rv = ZB_DeleteAccount(banking, accountId);
+        if (rv < 0) {
+            qWarning() << "Removing an account failed" << rv;
+        }
+    }
+    publishAccounts();
+}
+
+// Without contacting the bank: see chooseTanMethod().
+void BankingThread::executeChangeTanMethod(const Command &command)
+{
+    emit commandStarted(ChangeTanMethod);
+    if (!banking) {
+        emit commandFinished(ChangeTanMethod, false, tr("Banking is not available."));
+        return;
+    }
+    lastError.clear();
+    const bool changed = chooseTanMethod(command.arguments.value(QStringLiteral("bankAccessId")).toUInt(), true);
+    emit commandFinished(ChangeTanMethod, changed, changed ? QString()
+                         : (lastError.isEmpty() ? failureMessage(GWEN_ERROR_USER_ABORTED, QString()) : lastError));
 }
 
 void BankingThread::startCollectingBankMessages()

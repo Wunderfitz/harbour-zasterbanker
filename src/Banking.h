@@ -73,7 +73,8 @@ public:
         ResettingData = BankingThread::ResetData,
         FetchingTransactions = BankingThread::FetchTransactions,
         FetchingHoldings = BankingThread::FetchHoldings,
-        RetrievingAccounts = BankingThread::RetrieveAccounts
+        UpdatingBankAccess = BankingThread::UpdateBankAccess,
+        ChangingTanMethod = BankingThread::ChangeTanMethod
     };
     Q_ENUM(Operation)
 
@@ -107,8 +108,14 @@ public:
     Q_INVOKABLE void fetchTransactions(int accountId);
     Q_INVOKABLE void fetchHoldings(int accountId);
     Q_INVOKABLE void removeBankAccess(int bankAccessId);
-    /** For a bank access without accounts: asks the bank for them again. */
-    Q_INVOKABLE void retrieveAccounts(int bankAccessId);
+    /**
+     * Asks the bank afresh for its parameters and the access's accounts (BPD
+     * and UPD), offers to remove accounts it no longer lists, then fetches the
+     * balances. Also brings the accounts of an access that has none.
+     */
+    Q_INVOKABLE void updateBankAccess(int bankAccessId);
+    /** Another of the TAN methods the bank allows, without contacting it; and the TAN medium's name. */
+    Q_INVOKABLE void changeTanMethod(int bankAccessId);
     Q_INVOKABLE void respond(int interactionId, bool accepted, const QString &text, int choice);
     /** Aborts whatever the bank is waiting for: the running operation fails as cancelled. */
     Q_INVOKABLE void cancel();
@@ -123,7 +130,7 @@ signals:
     void progressTextChanged();
     void bankMessagesChanged();
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
-                              const QStringList &choices, const QString &imageUrl);
+                              const QStringList &choices, const QString &imageUrl, const QString &presetText);
     void interactionFinished(int interactionId);
     void operationFinished(int operation, bool success, const QString &message);
 
@@ -137,7 +144,7 @@ private slots:
     void handleProgress(const QString &text);
     void handleBankMessages(const QStringList &messages);
     void handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
-                                    const QStringList &choices, const QImage &image);
+                                    const QStringList &choices, const QImage &image, const QString &presetText);
     void handleInteractionFinished(int interactionId);
 
 private:

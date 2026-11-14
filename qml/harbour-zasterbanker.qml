@@ -41,7 +41,8 @@ ApplicationWindow {
                 heading: title,
                 message: text,
                 choices: choices,
-                imageUrl: imageUrl
+                imageUrl: imageUrl,
+                presetText: presetText
             }
             var dialog
             switch (type) {

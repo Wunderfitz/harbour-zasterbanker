@@ -32,6 +32,7 @@ Dialog {
     property string message
     property var choices
     property string imageUrl
+    property string presetText
     property bool answered: false
 
     canAccept: tanField.text.trim().length > 0

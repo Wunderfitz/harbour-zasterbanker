@@ -21,7 +21,9 @@
  * The TAN methods as the shim lists them, from made-up bank parameters (BPD),
  * and the TAN medium it stores for a user; and the jobs for transactions it
  * finds for an account, from the same parameters and made-up account
- * parameters (UPD), and the CAMT preference it sets. The parameters are written
+ * parameters (UPD), and the CAMT preference it sets; which stored accounts a
+ * made-up account list (HIUPD) names, and which it no longer does, and removing
+ * one of those. The parameters are written
  * into a user the way AqBanking keeps those it got from a bank, and read back
  * through the encrypted store.
  */
@@ -322,6 +324,85 @@ void transactionJobTests(AB_BANKING *banking, uint32_t uid)
     Check::equal("The jobs offered stay the same", transactionJobs(banking, both), camt | other | listed);
 }
 
+// One account list segment (HIUPD) among a job's responses, as AqBanking's
+// message engine stores it: what AH_Job_ReadAccountDataSeg() reads.
+void addListedAccount(GWEN_DB_NODE *responses, const char *iban, const char *accountId, int type)
+{
+    GWEN_DB_NODE *segment = GWEN_DB_GetGroup(responses, GWEN_PATH_FLAGS_CREATE_GROUP, "AccountData");
+    GWEN_DB_NODE *data = GWEN_DB_GetGroup(segment, GWEN_DB_FLAGS_DEFAULT, "data/AccountData");
+    GWEN_DB_SetIntValue(data, GWEN_DB_FLAGS_OVERWRITE_VARS, "head/version", 6);
+    if (iban) {
+        GWEN_DB_SetCharValue(data, GWEN_DB_FLAGS_OVERWRITE_VARS, "iban", iban);
+    }
+    GWEN_DB_SetCharValue(data, GWEN_DB_FLAGS_OVERWRITE_VARS, "accountId", accountId);
+    GWEN_DB_SetCharValue(data, GWEN_DB_FLAGS_OVERWRITE_VARS, "bankCode", "12345678");
+    GWEN_DB_SetIntValue(data, GWEN_DB_FLAGS_OVERWRITE_VARS, "type", type);
+}
+
+void accountListTests(AB_BANKING *banking)
+{
+    Check::section("Accounts the bank lists");
+    uint32_t uid = 0;
+    uint32_t other = 0;
+    useInstalledDefinitions();
+    ZB_AddPinTanUser(banking, "12345678", "lister", "", "https://bank.example/fints", "Test bank", &uid);
+    useInstalledDefinitions();
+    ZB_AddPinTanUser(banking, "12345678", "other", "", "https://bank.example/fints", "Other access", &other);
+    const uint32_t giro = addAccount(banking, uid, "DE91100000000123456789", {"HKSAL"});
+    const uint32_t closed = addAccount(banking, uid, "DE21500500009876543210", {"HKSAL"});
+    // without IBAN, by account number 1234567890
+    const uint32_t national = addAccount(banking, uid, "", {"HKSAL"});
+    const uint32_t otherAccount = addAccount(banking, other, "DE68210501700012345678", {"HKSAL"});
+    if (!Check::that("Two bank accesses with accounts are added", uid && other && giro && closed && national && otherAccount)) {
+        return;
+    }
+
+    // What the bank lists now: the giro account, the one without IBAN, one
+    // AqBanking has never seen, and the giro account's IBAN as a depot.
+    GWEN_DB_NODE *responses = GWEN_DB_Group_new("responses");
+    addListedAccount(responses, "DE91100000000123456789", "0123456789", 1);
+    addListedAccount(responses, nullptr, "1234567890", 1);
+    addListedAccount(responses, "DE44500105175407324931", "5407324931", 1);
+    addListedAccount(responses, "DE91100000000123456789", "0123456789", 30);
+    // other segments of the answer do not count
+    GWEN_DB_GetGroup(responses, GWEN_PATH_FLAGS_CREATE_GROUP, "BankMessage");
+    uint32_t listed[8] = {};
+    useInstalledDefinitions();
+    const int listedCount = ZB_ListedAccounts(banking, responses, listed, 8);
+    Check::equal("Every account list segment counts", listedCount, 4);
+    Check::equal("An account is found by its IBAN", listed[0], giro);
+    Check::equal("one without IBAN by bank code and account number", listed[1], national);
+    Check::equal("one never seen is found nowhere", listed[2], 0u);
+    Check::equal("and the account type has to match, as in AqBanking", listed[3], 0u);
+    useInstalledDefinitions();
+    Check::that("More segments than room is an error", ZB_ListedAccounts(banking, responses, listed, 2) < 0);
+    GWEN_DB_Group_free(responses);
+
+    uint32_t unlisted[8] = {};
+    useInstalledDefinitions();
+    const int unlistedCount = ZB_UnlistedAccounts(banking, uid, listed, listedCount, unlisted, 8);
+    Check::equal("One account is no longer listed", unlistedCount, 1);
+    Check::equal("the closed one, and not the other access's", unlisted[0], closed);
+    useInstalledDefinitions();
+    Check::equal("An empty list says nothing about which are gone",
+                 ZB_UnlistedAccounts(banking, uid, listed, 0, unlisted, 8), 0);
+
+    useInstalledDefinitions();
+    int rv = ZB_DeleteAccount(banking, closed);
+    Check::that("The closed account is removed", rv >= 0, QString::number(rv));
+    useInstalledDefinitions();
+    Check::equal("the others of its access stay", ZB_CountAccounts(banking, uid), 2);
+    useInstalledDefinitions();
+    Check::equal("and so does the other access's", ZB_CountAccounts(banking, other), 1);
+    useInstalledDefinitions();
+    Check::that("Removing it again is an error", ZB_DeleteAccount(banking, closed) < 0);
+
+    useInstalledDefinitions();
+    ZB_DeleteUser(banking, uid);
+    useInstalledDefinitions();
+    ZB_DeleteUser(banking, other);
+}
+
 const ZB_TAN_METHOD *find(const ZB_TAN_METHOD *methods, int count, int id)
 {
     for (int i = 0; i < count; i++) {
@@ -372,9 +453,17 @@ void tanMethodTests(AB_BANKING *banking, const QString &installedData)
     rv = ZB_SetTanMediumId(banking, uid, "Mein Smartphone");
     Check::that("The TAN medium is stored", rv >= 0, QString::number(rv));
     Check::equal("It reads back as entered", storedTanMedium(banking, uid), QStringLiteral("Mein Smartphone"));
+    char medium[ZB_NAME_LENGTH];
+    useInstalledDefinitions();
+    rv = ZB_GetTanMediumId(banking, uid, medium, sizeof(medium));
+    Check::equal("The shim reads it back", rv >= 0 ? QString::fromLatin1(medium) : QString::number(rv),
+                 QStringLiteral("Mein Smartphone"));
     useInstalledDefinitions();
     ZB_SetTanMediumId(banking, uid, "");
     Check::equal("An empty name removes it", storedTanMedium(banking, uid), QStringLiteral("(none)"));
+    useInstalledDefinitions();
+    rv = ZB_GetTanMediumId(banking, uid, medium, sizeof(medium));
+    Check::equal("and the shim reads none", rv >= 0 ? QString::fromLatin1(medium) : QString::number(rv), QString());
 
     transactionJobTests(banking, uid);
 
@@ -394,4 +483,6 @@ void tanMethodTests(AB_BANKING *banking, const QString &installedData)
 
     useInstalledDefinitions();
     ZB_DeleteUser(banking, uid);
+
+    accountListTests(banking);
 }

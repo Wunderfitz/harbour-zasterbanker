@@ -25,6 +25,8 @@
 #include <aqbanking/backendsupport/user.h>
 #include <aqbanking/types/imexporter_context.h>
 
+#include "aqhbci/applayer/adminjobs_l.h"
+#include "aqhbci/applayer/outbox_l.h"
 #include "aqhbci/banking/account.h"
 #include "aqhbci/banking/provider_online.h"
 #include "aqhbci/banking/user.h"
@@ -43,6 +45,8 @@
 
 #define ZB_AQHBCI_BACKEND "aqhbci"
 #define ZB_HBCI_VERSION_300 300
+/* More accounts than one bank access will ever have */
+#define ZB_MAX_LISTED_ACCOUNTS 256
 
 static void copyString(char *target, const char *source)
 {
@@ -160,13 +164,180 @@ int ZB_CountAccounts(AB_BANKING *ab, uint32_t uid)
     return rv;
 }
 
-int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid)
+/* As _findStored() in aqhbci's jobqueue_account.c, which assigns a listed
+ * account the unique ID of the stored one it updates. */
+static uint32_t findStoredAccount(AB_PROVIDER *pro, const AB_ACCOUNT *acc, const AB_ACCOUNT_SPEC_LIST *specs)
+{
+    const char *accountNumber = AB_Account_GetAccountNumber(acc);
+    const char *bankCode = AB_Account_GetBankCode(acc);
+    const char *iban = AB_Account_GetIban(acc);
+    const int accountType = AB_Account_GetAccountType(acc);
+    AB_ACCOUNT_SPEC *spec = NULL;
+
+    if (!specs) {
+        return 0;
+    }
+    if (iban && *iban) {
+        spec = AB_AccountSpec_List_FindFirst(specs, AB_Provider_GetName(pro), NULL, NULL, NULL, NULL,
+                                             iban, NULL, accountType);
+    }
+    if (!spec && accountNumber && *accountNumber && bankCode && *bankCode) {
+        spec = AB_AccountSpec_List_FindFirst(specs, AB_Provider_GetName(pro), AB_Account_GetCountry(acc),
+                                             bankCode, accountNumber, AB_Account_GetSubAccountId(acc),
+                                             NULL, NULL, accountType);
+    }
+    return spec ? AB_AccountSpec_GetUniqueId(spec) : 0;
+}
+
+static int listedAccounts(AB_PROVIDER *pro, GWEN_DB_NODE *responses, uint32_t *listed, int maxListed)
+{
+    AB_ACCOUNT_SPEC_LIST *specs = NULL;
+    GWEN_DB_NODE *response;
+    int count = 0;
+
+    /* none stored is no error: then nothing the bank lists matches */
+    AB_Banking_GetAccountSpecList(AB_Provider_GetBanking(pro), &specs);
+    for (response = responses ? GWEN_DB_FindFirstGroup(responses, "AccountData") : NULL; response;
+         response = GWEN_DB_FindNextGroup(response, "AccountData")) {
+        GWEN_DB_NODE *data = GWEN_DB_GetGroup(response, GWEN_PATH_FLAGS_NAMEMUSTEXIST, "data/AccountData");
+        AB_ACCOUNT *acc;
+
+        if (!data) {
+            continue;
+        }
+        if (count >= maxListed) {
+            count = GWEN_ERROR_BUFFER_OVERFLOW;
+            break;
+        }
+        acc = AB_Provider_CreateAccountObject(pro);
+        AH_Job_ReadAccountDataSeg(acc, data);
+        listed[count++] = findStoredAccount(pro, acc, specs);
+        AB_Account_free(acc);
+    }
+    if (specs) {
+        AB_AccountSpec_List_free(specs);
+    }
+    return count;
+}
+
+int ZB_ListedAccounts(AB_BANKING *ab, GWEN_DB_NODE *responses, uint32_t *listed, int maxListed)
+{
+    AB_PROVIDER *pro;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    rv = listedAccounts(pro, responses, listed, maxListed);
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+static int unlistedAccounts(AB_PROVIDER *pro, uint32_t uid, const uint32_t *listed, int listedCount,
+                            uint32_t *unlisted, int maxUnlisted)
+{
+    AB_ACCOUNT_LIST *accounts;
+    AB_ACCOUNT *account;
+    int count = 0;
+    int rv;
+
+    if (listedCount < 1) {
+        return 0;
+    }
+    accounts = AB_Account_List_new();
+    rv = AB_Provider_ReadAccounts(pro, accounts);
+    if (rv >= 0 || rv == GWEN_ERROR_NOT_FOUND) {
+        for (account = AB_Account_List_First(accounts); account && count < maxUnlisted;
+             account = AB_Account_List_Next(account)) {
+            const uint32_t accountUid = AB_Account_GetUniqueId(account);
+            int i;
+            int found = 0;
+
+            if (AB_Account_GetUserId(account) != uid) {
+                continue;
+            }
+            for (i = 0; i < listedCount && !found; i++) {
+                found = listed[i] == accountUid;
+            }
+            if (!found) {
+                unlisted[count++] = accountUid;
+            }
+        }
+        rv = count;
+    }
+    AB_Account_List_free(accounts);
+    return rv;
+}
+
+int ZB_UnlistedAccounts(AB_BANKING *ab, uint32_t uid, const uint32_t *listed, int listedCount,
+                        uint32_t *unlisted, int maxUnlisted)
+{
+    AB_PROVIDER *pro;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    rv = unlistedAccounts(pro, uid, listed, listedCount, unlisted, maxUnlisted);
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+/* AH_Provider_GetAccounts(pro, user, ctx, 1, 0, 1) step by step, keeping the
+ * job until the accounts it brought are known (*pListedCount of them, IDs in
+ * listed; -1 if that could not be told). */
+static int requestAccountList(AB_PROVIDER *pro, AB_USER *user, uint32_t *listed, int maxListed, int *pListedCount)
+{
+    AB_BANKING *ab = AB_Provider_GetBanking(pro);
+    AB_IMEXPORTER_CONTEXT *ctx;
+    AH_OUTBOX *ob;
+    AH_JOB *job;
+    int rv;
+
+    *pListedCount = -1;
+    /* asks with BPD and UPD version 0 */
+    job = AH_Job_UpdateBank_new(pro, user);
+    if (!job) {
+        return GWEN_ERROR_GENERIC;
+    }
+    AH_Job_AddSigner(job, AB_User_GetUserId(user));
+
+    ctx = AB_ImExporterContext_new();
+    ob = AH_Outbox_new(pro);
+    AH_Outbox_AddJob(ob, job);
+    rv = AH_Outbox_Execute(ob, ctx, 1, 1, 1);
+    AH_Outbox_free(ob);
+    AB_ImExporterContext_free(ctx);
+    /* always committed if executed, even with errors, as AqBanking does */
+    if (rv == 0) {
+        rv = AH_Job_Commit(job, 1);
+    }
+    if (rv == 0) {
+        if (AH_Job_HasErrors(job)) {
+            rv = GWEN_ERROR_GENERIC;
+        } else {
+            *pListedCount = listedAccounts(pro, AH_Job_GetResponses(job), listed, maxListed);
+        }
+    }
+    AH_Job_free(job);
+    AB_Banking_ClearCryptTokenList(ab);
+    return rv;
+}
+
+int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid, uint32_t *unlisted, int maxUnlisted, int *pUnlistedCount)
 {
     AB_PROVIDER *pro;
     AB_USER *user = NULL;
     AB_IMEXPORTER_CONTEXT *ctx;
+    uint32_t listed[ZB_MAX_LISTED_ACCOUNTS];
+    int listedCount = -1;
     int rv;
 
+    if (pUnlistedCount) {
+        *pUnlistedCount = 0;
+    }
     pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
     if (!pro) {
         return GWEN_ERROR_NOT_FOUND;
@@ -185,9 +356,11 @@ int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid)
         rv = AB_Provider_GetUser(pro, uid, 1, 1, &user);
     }
     if (rv >= 0) {
-        ctx = AB_ImExporterContext_new();
-        rv = AH_Provider_GetAccounts(pro, user, ctx, 1, 0, 1);
-        AB_ImExporterContext_free(ctx);
+        rv = requestAccountList(pro, user, listed, ZB_MAX_LISTED_ACCOUNTS, &listedCount);
+    }
+    if (rv >= 0 && unlisted && pUnlistedCount) {
+        const int count = unlistedAccounts(pro, uid, listed, listedCount, unlisted, maxUnlisted);
+        *pUnlistedCount = count > 0 ? count : 0;
     }
     if (rv >= 0) {
         rv = countAccounts(pro, uid);
@@ -207,6 +380,24 @@ int ZB_GetAccounts(AB_BANKING *ab, uint32_t uid)
     }
     if (user) {
         AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+int ZB_DeleteAccount(AB_BANKING *ab, uint32_t accountUid)
+{
+    AB_PROVIDER *pro;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    /* As in AH_Control_DelAccount() */
+    rv = AB_Provider_HasAccount(pro, accountUid);
+    if (rv >= 0) {
+        rv = AB_Provider_DeleteAccount(pro, accountUid);
     }
     AB_Banking_EndUseProvider(ab, pro);
     return rv;
@@ -350,6 +541,33 @@ int ZB_SetTanMediumId(AB_BANKING *ab, uint32_t uid, const char *tanMediumId)
         rv = AB_Provider_EndExclUseUser(pro, user, 0);
         if (rv < 0) {
             AB_Provider_EndExclUseUser(pro, user, 1);
+        }
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv;
+}
+
+int ZB_GetTanMediumId(AB_BANKING *ab, uint32_t uid, char *buffer, int size)
+{
+    AB_PROVIDER *pro;
+    AB_USER *user = NULL;
+    int rv;
+
+    if (!buffer || size < 1) {
+        return GWEN_ERROR_INVALID;
+    }
+    buffer[0] = 0;
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    rv = AB_Provider_GetUser(pro, uid, 1, 1, &user);
+    if (rv >= 0) {
+        const char *medium = AH_User_GetTanMediumId(user);
+        if (medium) {
+            strncpy(buffer, medium, (size_t) size - 1);
+            buffer[size - 1] = 0;
         }
         AB_User_free(user);
     }
