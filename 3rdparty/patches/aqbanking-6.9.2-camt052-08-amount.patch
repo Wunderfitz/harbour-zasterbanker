@@ -1,0 +1,71 @@
+--- aqbanking-6.9.2.orig/src/libs/plugins/imexporters/xml/data/camt_052_001_08.xml	2026-11-14 21:19:10.441414970 +0100
++++ aqbanking-6.9.2/src/libs/plugins/imexporters/xml/data/camt_052_001_08.xml	2026-11-14 21:19:22.067231693 +0100
+@@ -162,6 +162,36 @@
+                   </XmlIfPathExists>
+ 
+ 
++                  <!-- amount
++                       Zaster Banker: the entry's, as in the other CAMT profiles.
++                       ISO 20022 requires it there, while NtryDtls/TxDtls/Amt is
++                       optional: comdirect leaves it out, and an entry without
++                       NtryDtls had no amount at all. -->
++                  <XmlIfCharDataMatches path="CdtDbtInd" pattern="DBIT">
++                    <XmlIfHasCharData path="Amt">
++                      <XmlIfHasCharData path="Amt@Ccy">
++                        <DbCreateAndEnterTempGroup name="amount" >
++                          <DbSetTempCharValue name="value"    path="Amt" />
++                          <DbSetTempCharValue name="currency" path="Amt@Ccy" />
++                          <DbSetCharValue name="value" value="-$(value):$(currency)" />
++                        </DbCreateAndEnterTempGroup> <!-- amount -->
++                      </XmlIfHasCharData> <!-- Amt@Ccy -->
++                    </XmlIfHasCharData>   <!-- Amt -->
++                  </XmlIfCharDataMatches> <!-- CdtDbtInd == DBIT -->
++
++                  <XmlIfCharDataMatches path="CdtDbtInd" pattern="CRDT">
++                    <XmlIfHasCharData path="Amt">
++                      <XmlIfHasCharData path="Amt@Ccy">
++                        <DbCreateAndEnterTempGroup name="amount" >
++                          <DbSetTempCharValue name="value"    path="Amt" />
++                          <DbSetTempCharValue name="currency" path="Amt@Ccy" />
++                          <DbSetCharValue name="value" value="$(value):$(currency)" />
++                        </DbCreateAndEnterTempGroup> <!-- amount -->
++                      </XmlIfHasCharData> <!-- Amt@Ccy -->
++                    </XmlIfHasCharData>   <!-- Amt -->
++                  </XmlIfCharDataMatches> <!-- CdtDbtInd == CRDT -->
++
++
+                   <XmlIfPathExists path="NtryDtls/TxDtls">
+                     <XmlEnter path="NtryDtls/TxDtls">
+ 
+@@ -225,15 +255,6 @@
+                         </XmlEnter> <!-- RltdAgts -->
+                       </XmlIfPathExists>
+ 
+-                        <XmlIfHasCharData path="Amt">
+-                          <XmlIfHasCharData path="Amt@Ccy">
+-                            <DbCreateAndEnterTempGroup name="amount" >
+-                              <DbSetTempCharValue name="value"    path="Amt" />
+-                              <DbSetTempCharValue name="currency" path="Amt@Ccy" />
+-                              <DbSetCharValue name="value" value="-$(value):$(currency)" />
+-                            </DbCreateAndEnterTempGroup> <!-- amount -->
+-                          </XmlIfHasCharData> <!-- Amt@Ccy -->
+-                        </XmlIfHasCharData>   <!-- Amt -->
+                       
+                       </XmlIfCharDataMatches> <!-- CdtDbtInd == DBIT -->
+           
+@@ -283,15 +304,6 @@
+                         </XmlEnter> <!-- RltdAgts -->
+                       </XmlIfPathExists>
+ 
+-                        <XmlIfHasCharData path="Amt">
+-                          <XmlIfHasCharData path="Amt@Ccy">
+-                            <DbCreateAndEnterTempGroup name="amount" >
+-                              <DbSetTempCharValue name="value"    path="Amt" />
+-                              <DbSetTempCharValue name="currency" path="Amt@Ccy" />
+-                              <DbSetCharValue name="value" value="$(value):$(currency)" />
+-                            </DbCreateAndEnterTempGroup> <!-- amount -->
+-                          </XmlIfHasCharData> <!-- Amt@Ccy -->
+-                        </XmlIfHasCharData>   <!-- Amt -->
+           
+                       </XmlIfCharDataMatches> <!-- CdtDbtInd == CRDT- -->
+     

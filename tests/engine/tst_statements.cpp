@@ -199,6 +199,55 @@ const char CAMT_08[] = R"(<?xml version="1.0" encoding="UTF-8"?>
 </Document>
 )";
 
+// The amount only where ISO 20022 requires it, in the entry: transaction details
+// without one (as comdirect sends them), and an entry without details at all.
+const char CAMT_08_ENTRY_AMOUNT[] = R"(<?xml version="1.0" encoding="UTF-8"?>
+<Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.08">
+ <BkToCstmrAcctRpt>
+  <GrpHdr><MsgId>TEST-3</MsgId><CreDtTm>2026-11-14T10:00:00</CreDtTm></GrpHdr>
+  <Rpt>
+   <Id>TEST-3-1</Id>
+   <CreDtTm>2026-11-14T10:00:00</CreDtTm>
+   <Acct><Id><IBAN>DE02100100100006820101</IBAN></Id><Ccy>EUR</Ccy></Acct>
+   <Ntry>
+    <Amt Ccy="EUR">1234.56</Amt>
+    <CdtDbtInd>CRDT</CdtDbtInd>
+    <Sts><Cd>BOOK</Cd></Sts>
+    <BookgDt><Dt>2026-11-12</Dt></BookgDt>
+    <ValDt><Dt>2026-11-12</Dt></ValDt>
+    <NtryDtls><TxDtls>
+     <RltdPties>
+      <Dbtr><Pty><Nm>Arbeitgeber AG</Nm></Pty></Dbtr>
+     </RltdPties>
+     <RmtInf><Ustrd>Gehalt November</Ustrd></RmtInf>
+    </TxDtls></NtryDtls>
+   </Ntry>
+   <Ntry>
+    <Amt Ccy="EUR">19.99</Amt>
+    <CdtDbtInd>DBIT</CdtDbtInd>
+    <Sts><Cd>BOOK</Cd></Sts>
+    <BookgDt><Dt>2026-11-11</Dt></BookgDt>
+    <ValDt><Dt>2026-11-11</Dt></ValDt>
+    <NtryDtls><TxDtls>
+     <RltdPties>
+      <Cdtr><Pty><Nm>Buchladen KG</Nm></Pty></Cdtr>
+     </RltdPties>
+     <RmtInf><Ustrd>Rechnung 4711</Ustrd></RmtInf>
+    </TxDtls></NtryDtls>
+   </Ntry>
+   <Ntry>
+    <Amt Ccy="EUR">4.90</Amt>
+    <CdtDbtInd>DBIT</CdtDbtInd>
+    <Sts><Cd>BOOK</Cd></Sts>
+    <BookgDt><Dt>2026-11-10</Dt></BookgDt>
+    <ValDt><Dt>2026-11-10</Dt></ValDt>
+    <AddtlNtryInf>Kontofuehrungsentgelt</AddtlNtryInf>
+   </Ntry>
+  </Rpt>
+ </BkToCstmrAcctRpt>
+</Document>
+)";
+
 const char CAMT_02[] = R"(<?xml version="1.0" encoding="UTF-8"?>
 <Document xmlns="urn:iso:std:iso:20022:tech:xsd:camt.052.001.02">
  <BkToCstmrAcctRpt>
@@ -242,6 +291,26 @@ void camtTests(AB_BANKING *banking)
     QVariantMap card = byName(transactions, QStringLiteral("Bio Markt GmbH"));
     Check::equal("CAMT .08: a debit is negative", card.value(QStringLiteral("amount")), -42.5);
     Check::equal("CAMT .08: name of the payee", card.value(QStringLiteral("name")), QStringLiteral("Bio Markt GmbH"));
+
+    // The entry's amount (patch aqbanking-6.9.2-camt052-08-amount), which the
+    // profile only took from the transaction details before.
+    transactions = importTransactions(banking, "xml", "camt_052_001_08", QByteArray(CAMT_08_ENTRY_AMOUNT), AB_Transaction_TypeStatement, &rv);
+    Check::that("CAMT .08 without amounts in the details is read", rv >= 0, QString::number(rv));
+    Check::equal("CAMT .08 entry amount: all three entries arrive", transactions.size(), 3);
+    salary = byName(transactions, QStringLiteral("Arbeitgeber AG"));
+    Check::equal("CAMT .08 entry amount: has an amount", salary.value(QStringLiteral("hasAmount")), true);
+    Check::equal("CAMT .08 entry amount: a credit is positive", salary.value(QStringLiteral("amount")), 1234.56);
+    Check::equal("CAMT .08 entry amount: currency", salary.value(QStringLiteral("currency")), QStringLiteral("EUR"));
+    QVariantMap invoice = byName(transactions, QStringLiteral("Buchladen KG"));
+    Check::equal("CAMT .08 entry amount: a debit is negative", invoice.value(QStringLiteral("amount")), -19.99);
+    QVariantMap fee;
+    for (const QVariant &transaction : transactions) {
+        if (transaction.toMap().value(QStringLiteral("kind")).toString() == QStringLiteral("Kontofuehrungsentgelt")) {
+            fee = transaction.toMap();
+        }
+    }
+    Check::equal("CAMT .08 entry amount: an entry without details has one", fee.value(QStringLiteral("hasAmount")), true);
+    Check::equal("CAMT .08 entry amount: its amount", fee.value(QStringLiteral("amount")), -4.9);
 
     transactions = importTransactions(banking, "xml", "camt_052_001_02", QByteArray(CAMT_02), AB_Transaction_TypeStatement, &rv);
     Check::that("CAMT 052.001.02 is read", rv >= 0, QString::number(rv));

@@ -202,6 +202,16 @@ archives, and the app links them in.
     `AB_Security_fromDb()` does not read, so every price was lost; a typo in the
     time format dated every price the 1st of its month; tag `98C` went to a
     variable nothing read. It also dropped umlauts in names where `char` is signed.
+  - `aqbanking-6.9.2-camt052-08-amount.patch`: the import profile for CAMT
+    052.001.08 took a transaction's amount only from its details
+    (`NtryDtls/TxDtls/Amt`), which ISO 20022 leaves optional, rather than from
+    the entry (`Ntry/Amt`), which it requires and which every other CAMT
+    profile of AqBanking reads. comdirect leaves it out of the details, so
+    every transaction showed "-" (found 2026-11-14), and an entry without
+    details had no amount anywhere. It now reads the entry's. GnuCash and
+    KMyMoney use the same profile, but ask for MT940 by default; the profile is
+    unchanged up to AqBanking 6.9.2, the newest release. To be reported and
+    proposed upstream once confirmed at comdirect (project owner, 2026-11-14).
   - `gwenhywfar-5.14.1-require-peer-cert.patch`: Gwenhywfar's HTTPS client
     would carry on with a TLS connection the server presented no certificate
     for. It now requires one.
@@ -405,8 +415,8 @@ last fails, the half-made user is deleted again: nothing is left behind.
 - Pending transactions (MT942) arrive without a currency, so the page falls back
   to the account's.
 - A statement line the parser found no amount in stays in the list and shows
-  "-": CAMT 052.001.08 reads the amount from `TxDtls`, and leaving such a line out
-  would make the statement look complete when it is not.
+  "-": leaving it out would make the statement look complete when it is not.
+  Since the patch above, CAMT 052.001.08 should not bring such lines any more.
 - **A transaction can be copied to the clipboard** (added 2026-11-08), from its
   context menu: plain text, one line each for date (or "pending"), name, amount,
   purpose, IBAN and kind, empty ones left out. Copying is the user's choice;
@@ -692,7 +702,8 @@ checked on every push.
   statements read the way the app reads them (AqBanking started on the
   encrypted store, its real importers with the profiles the package installs,
   merged as the aqhbci jobs merge them, then `StatementReader`: MT940, MT942,
-  CAMT 052.001.08 and .02, MT535 with all three fixes of the MT535 patch, the
+  CAMT 052.001.08 (with the amount in the details, only in the entry, and an
+  entry without details) and .02, MT535 with all three fixes of the MT535 patch, the
   choice of balance), the TAN methods the shim lists from made-up bank
   parameters (whether a TAN medium is required, in both of HKTAN's field
   names) and the TAN medium it stores, the jobs for transactions it finds for
@@ -935,7 +946,7 @@ project unless the owner says so.
   CAMT. An MT940 fallback went into the test build `0.5.0-0.202611111919`
   (not handed out); it was replaced by the AqBanking patch that has the CAMT
   request name the account by IBAN and BIC only (see
-  [Transactions](#transactions)). Its result at comdirect is awaited.
+  [Transactions](#transactions)). Result at comdirect: see 2026-11-14.
 - 2026-11-11, tester: **Sparkasse: setup went through, no account shown**, no
   logs. See [Setting up a bank access](#setting-up-a-bank-access) for what the
   test build `0.5.0-0.202611112102` does (it also carries the comdirect,
@@ -951,8 +962,9 @@ project unless the owner says so.
   encode"** (characters from `äöüÄÖÜß!$%&/()=?+#,.-:`). AqBanking reports that
   when it cannot build the message; the engine tests reproduce it for umlauts
   in UTF-8 over the PIN field's 35 bytes. Fixed by handing PIN and TAN over in
-  ISO 8859-1 (see [Data protection](#data-protection)); untested on a bank. A
-  shorter PIN with umlauts would have gone out, but as the wrong PIN.
+  ISO 8859-1 (see [Data protection](#data-protection)); confirmed by the tester
+  on 2026-11-14. A shorter PIN with umlauts would have gone out, but as the
+  wrong PIN.
 - 2026-11-11, real bank, tester: **a Postbank credit card's transactions fail**
   with `9050 - Teilweise fehlerhaft. (M)`, `9010 - Verarbeitung nicht möglich.
   (S)` and `9210 - Keine Daten zur übermittelten Auftragsreferenz vorhanden.
@@ -983,8 +995,20 @@ project unless the owner says so.
   from the bank", and its page lists them with markup kept literal. Copying them
   was not checked, nor the messages of a real fetch. The engine tests check the
   TAN methods and medium; the setup dialog for the medium was not seen.
-- Not verified yet: Sparkassen and other data centres or private banks besides
-  the DKB, the other TAN methods (as far as is known), removing a bank access,
+- **2026-11-14, real banks, testers, test build `0.5.0-0.202611112102`:**
+  - **Sparkassen work**: several Sparkasse users reported everything working.
+    Not reported: whether the tester whose setup had shown no account was among
+    them, and which of the new steps (UPD version 0, `HKSPA`) it took.
+  - **The Postbank credit card's transactions work** (`DKKKU`, or what the UPD
+    lists, instead of CAMT).
+  - **comdirect: the transactions arrive, but every amount shows "-"**: the
+    CAMT request with IBAN and BIC only is accepted. That the amount is missing
+    from comdirect's transaction details follows from AqBanking's CAMT 052.001.08
+    profile (patch above, the only way names arrive without an amount); the
+    statement itself was not seen. Fixed by that patch, untested at comdirect.
+  - **The PIN with umlauts and special characters works** (ISO 8859-1).
+- Not verified yet: data centres or private banks besides Atruvia, the
+  Sparkassen and the DKB, the other TAN methods (as far as is known), removing a bank access,
   and the reset after an unreadable store (`DataUnreadable`; the reset after a
   key that could not be read was checked on the emulator).
 
@@ -994,7 +1018,8 @@ project unless the owner says so.
 testing phase for brave users, with a testing and development group on Telegram
 (linked in the README), where the RPMs for testing are shared. It will be published in the Jolla Store, on OpenRepos and
 as a GitHub release once it has proven to work with banks across several
-backends; so far Atruvia banks and the DKB have been tried (2026-11-09).
+backends; so far Atruvia banks, the DKB, Sparkassen, Deutsche Bank,
+Postbank and comdirect have been tried (2026-11-14).
 
 Iterations are decided one at a time by the project owner. Known so far:
 
