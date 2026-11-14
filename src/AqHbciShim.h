@@ -114,7 +114,26 @@ int ZB_DeleteAccount(AB_BANKING *ab, uint32_t accountUid);
 int ZB_CountAccounts(AB_BANKING *ab, uint32_t uid);
 
 int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int maxMethods);
+/* Also sets the TAN input mechanism for it, see ZB_UpdateTanMechanism(). */
 int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId);
+
+/*
+ * The TAN input mechanism (AB_BANKING_TANMETHOD_*) for a TAN method, by its
+ * technical ID and its name, or 0 to leave it to AqBanking: chipTAN optical
+ * (flicker code) for IDs like "HHD1.4OPT" or names with "optisch" or "optic",
+ * chipTAN QR for "Q1S", IDs ending in "QR" and names like "chipTAN-QR".
+ * AqBanking looks at the method's ZKA name first, which is "HHD" for every
+ * chipTAN variant, and takes that for text input: Sparkassen's chipTAN QR came
+ * as a start code to type into the generator. GnuCash and KMyMoney users choose
+ * the mechanism by hand ("aqhbci-tool4 settanmechanism").
+ */
+int ZB_TanMechanismFor(const char *methodId, const char *methodName);
+
+/*
+ * Sets the user's TAN input mechanism to ZB_TanMechanismFor() the selected
+ * TAN method, rewriting the store only if it changes. Returns the mechanism.
+ */
+int ZB_UpdateTanMechanism(AB_BANKING *ab, uint32_t uid);
 int ZB_SetTanMediumId(AB_BANKING *ab, uint32_t uid, const char *tanMediumId);
 /* The name of the TAN medium stored for the user into buffer, "" if there is none. */
 int ZB_GetTanMediumId(AB_BANKING *ab, uint32_t uid, char *buffer, int size);

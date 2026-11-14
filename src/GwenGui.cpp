@@ -20,15 +20,18 @@
 #include "GwenGui.h"
 
 #include "BankingThread.h"
+#include "FlickerCode.h"
 
 #include <QCoreApplication>
 #include <QDebug>
 #include <QMap>
 #include <QRegExp>
+#include <QRegularExpression>
 
 #include <aqbanking/banking.h>
 #include <gwenhywfar/db.h>
 #include <gwenhywfar/gui_be.h>
+#include <gwenhywfar/i18n.h>
 #include <gwenhywfar/ssl_cert_descr.h>
 
 #include <cstring>
@@ -58,6 +61,25 @@ struct RememberedPin {
 BankingThread *bankingThread = nullptr;
 QMap<QByteArray, RememberedPin> pins;
 uint32_t nextBoxId = 1;
+
+// What the last request to confirm in the bank's app during this command was
+// about (FinTS segment and login, or AqBanking's whole text): the same again
+// means the bank has no confirmation yet (3956).
+QString lastApproval;
+
+// AqBanking's message box for app approval (decoupled TAN methods), as
+// cbox_voptan.c, _letUserConfirmApproval(), writes it. Compare them when
+// upgrading AqBanking. Its plain text is not translated (AqBanking 6.9.2), names
+// the FinTS segment and the login, and its "Approved" button is a fuzzy entry
+// and stays English, so the app words the box itself.
+const char APPROVAL_DOMAIN[] = "aqbanking";
+const char APPROVAL_TITLE[] = "Decoupled Mode: Waiting for Approval";
+const char APPROVAL_TEXT[] = "Your approval for this communication with your bank server is required.\n"
+                             "Please use your smart phone app for this\n"
+                             "and click \"Approved\" afterwards (%s, user %s at %s).\n"
+                             "\n"
+                             "Message from bank server regarding this process:\n"
+                             "%s\n";
 
 void wipe(QByteArray &data)
 {
@@ -184,9 +206,17 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
 
     QByteArray image;
     QString mimeType;
+    QString flicker;
     if (isTan && (methodId & GWEN_Gui_PasswordMethod_Mask) == GWEN_Gui_PasswordMethod_OpticalHHD && methodParams) {
         const int tanMethod = GWEN_DB_GetIntValue(methodParams, "tanMethodId", 0, AB_BANKING_TANMETHOD_TEXT);
-        if (tanMethod == AB_BANKING_TANMETHOD_PHOTOTAN || tanMethod == AB_BANKING_TANMETHOD_CHIPTAN_QR) {
+        if (tanMethod == AB_BANKING_TANMETHOD_CHIPTAN_OPTIC) {
+            // AqBanking's code to send, as hex digits; the frames to show, worked
+            // out here on the banking thread.
+            flicker = FlickerCode::frames(QString::fromLatin1(GWEN_DB_GetCharValue(methodParams, "challenge", 0, "")));
+            if (flicker.isEmpty()) {
+                qWarning() << "The flicker code could not be read";
+            }
+        } else if (tanMethod == AB_BANKING_TANMETHOD_PHOTOTAN || tanMethod == AB_BANKING_TANMETHOD_CHIPTAN_QR) {
             unsigned int size = 0;
             const void *data = GWEN_DB_GetBinValue(methodParams, "imageData", 0, nullptr, 0, &size);
             if (data && size > 0) {
@@ -198,7 +228,8 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
 
     BankingThread::Response response = bankingThread->requestInteraction(
                 isTan ? BankingThread::TanInteraction : BankingThread::PinInteraction,
-                plainText(title), isTan ? styledText(text) : plainText(text), QStringList(), image, mimeType);
+                plainText(title), isTan ? styledText(text) : plainText(text), QStringList(), image, mimeType,
+                QString(), flicker);
     if (!response.accepted) {
         return GWEN_ERROR_USER_ABORTED;
     }
@@ -248,9 +279,90 @@ int GWENHYWFAR_CB setPasswordStatus(GWEN_GUI *, const char *token, const char *,
     return 0;
 }
 
+/*
+ * Whether the title is that of AqBanking's box for app approval, in whatever
+ * language AqBanking shows it; if so, the bank's message in it, unfiltered,
+ * goes to *bankMessage, what it is about to *subject, and *understood says
+ * whether the text read as expected.
+ */
+bool isApprovalRequest(const char *title, const char *text, QString *bankMessage, QString *subject, bool *understood)
+{
+    const QString heading = QString::fromUtf8(title ? title : "");
+    if (heading != QString::fromUtf8(GWEN_I18N_Translate(APPROVAL_DOMAIN, APPROVAL_TITLE))
+            && heading != QLatin1String(APPROVAL_TITLE)) {
+        return false;
+    }
+    // AqBanking's text, plain part, laid over its own template: the last of its
+    // four values is the bank's message.
+    QString plain = QString::fromUtf8(text ? text : "");
+    const int html = plain.indexOf(QStringLiteral("<html>"), 0, Qt::CaseInsensitive);
+    if (html >= 0) {
+        plain.truncate(html);
+    }
+    bankMessage->clear();
+    *subject = QStringLiteral("text:") + plain;
+    *understood = false;
+    for (const char *source : { GWEN_I18N_Translate(APPROVAL_DOMAIN, APPROVAL_TEXT), APPROVAL_TEXT }) {
+        const QStringList parts = QString::fromUtf8(source).split(QStringLiteral("%s"));
+        QString pattern;
+        for (int i = 0; i < parts.size(); i++) {
+            pattern += QRegularExpression::escape(parts.at(i));
+            if (i < parts.size() - 1) {
+                pattern += QStringLiteral("(.*)");
+            }
+        }
+        const QRegularExpressionMatch match = QRegularExpression(QLatin1Char('^') + pattern + QLatin1Char('$'),
+                                                                 QRegularExpression::DotMatchesEverythingOption).match(plain);
+        if (match.hasMatch() && match.lastCapturedIndex() == 4) {
+            *bankMessage = match.captured(4).trimmed();
+            *subject = QStringLiteral("job:") + match.captured(1) + QLatin1Char('/') + match.captured(2);
+            *understood = true;
+            break;
+        }
+    }
+    return true;
+}
+
 int GWENHYWFAR_CB messageBox(GWEN_GUI *, uint32_t, const char *title, const char *text,
                              const char *b1, const char *b2, const char *b3, uint32_t)
 {
+    QString bankMessage;
+    QString subject;
+    bool understood = false;
+    if (isApprovalRequest(title, text, &bankMessage, &subject, &understood)) {
+        // Asked the same again within the command: the bank said it has no
+        // confirmation yet (3956), and AqBanking asks once more.
+        QString message;
+        const bool again = !lastApproval.isNull() && subject == lastApproval;
+        lastApproval = subject;
+        if (again) {
+            message = QCoreApplication::translate("GwenGui", "Your bank has not received your confirmation yet.")
+                    + QStringLiteral("<br><br>");
+        }
+        message += QCoreApplication::translate("GwenGui", "Your bank asks you to confirm this in its app. "
+                                                          "Confirm there, then come back and tap \"Confirmed\".");
+        if (!understood) {
+            // not as expected: AqBanking's own text, rather than nothing
+            const QString aqbankingText = styledText(text);
+            if (!aqbankingText.isEmpty()) {
+                message += QStringLiteral("<br><br>") + aqbankingText;
+            }
+        } else if (!bankMessage.isEmpty()) {
+            message += QStringLiteral("<br><br>") + QCoreApplication::translate("GwenGui", "Your bank says:")
+                    + QStringLiteral("<br>") + styledText(bankMessage.toUtf8().constData());
+        }
+        // One answer, the dialog's accept; backing out cancels, as AqBanking's "Abort".
+        const BankingThread::Response response = bankingThread->requestInteraction(
+                    BankingThread::MessageInteraction,
+                    QCoreApplication::translate("GwenGui", "Confirm in your banking app"), message,
+                    QStringList() << QCoreApplication::translate("GwenGui", "Confirmed"));
+        if (!response.accepted) {
+            return GWEN_ERROR_USER_ABORTED;
+        }
+        // AqBanking goes on with 1 only, its "Approved"
+        return response.choice == 1 ? 1 : GWEN_ERROR_USER_ABORTED;
+    }
+
     QStringList buttons;
     for (const char *button : { b1, b2, b3 }) {
         if (!button) {
@@ -402,6 +514,7 @@ void destroy(GWEN_GUI *gui)
 
 void finishCommand()
 {
+    lastApproval.clear();
     const qint64 finished = now();
     for (auto pin = pins.begin(); pin != pins.end();) {
         if (!pin.value().accepted) {

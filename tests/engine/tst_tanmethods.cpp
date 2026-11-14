@@ -30,11 +30,14 @@
 
 #include "Check.h"
 #include "AqHbciShim.h"
+#include "FakeBankingThread.h"
+#include "GwenGui.h"
 
 #include <QFile>
 
 #include <aqbanking/banking.h>
 #include <gwenhywfar/db.h>
+#include <gwenhywfar/gui.h>
 #include <gwenhywfar/msgengine.h>
 #include <gwenhywfar/pathmanager.h>
 
@@ -45,6 +48,8 @@ extern "C" {
 #include "aqhbci/banking/user.h"
 #include "aqhbci/banking/user_l.h"
 #include "aqhbci/msglayer/bpd_l.h"
+#include "aqhbci/tan/tan_chiptan_opt.h"
+#include "aqhbci/tan/tanmethod.h"
 
 // From aqhbci's joblayer/job_l.h and ajobs/jobgettrans_camt_l.h, which C++
 // cannot include: result_l.h, which they pull in, names a parameter "or".
@@ -72,12 +77,16 @@ void useInstalledDefinitions()
 
 // One tanMethod group of HITANS, as AqBanking's message engine stores it: numbers
 // as numbers, the alphanumeric fields as text.
-void addMethod(GWEN_DB_NODE *version, int function, const char *name, const char *mediumField, const char *needed)
+void addMethod(GWEN_DB_NODE *version, int function, const char *name, const char *mediumField, const char *needed,
+               const char *methodId = nullptr)
 {
     GWEN_DB_NODE *method = GWEN_DB_GetGroup(version, GWEN_PATH_FLAGS_CREATE_GROUP, "tanMethod");
     GWEN_DB_SetIntValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "function", function);
     GWEN_DB_SetIntValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "process", 2);
-    GWEN_DB_SetCharValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "methodId", name);
+    if (methodId) {
+        GWEN_DB_SetCharValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "zkaTanName", "HHD");
+    }
+    GWEN_DB_SetCharValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "methodId", methodId ? methodId : name);
     GWEN_DB_SetCharValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, "methodName", name);
     if (mediumField) {
         GWEN_DB_SetCharValue(method, GWEN_DB_FLAGS_OVERWRITE_VARS, mediumField, needed);
@@ -99,6 +108,9 @@ bool giveBankParameters(AB_BANKING *banking, uint32_t uid)
         addMethod(version6, 942, "mobileTAN", "needTanMediumId", "1");
         addMethod(version6, 972, "chipTAN", "needTanMediumId", "0");
         addMethod(version6, 982, "photoTAN", nullptr, nullptr);
+        // as Sparkassen describe chipTAN: ZKA name HHD, technical ID telling the kind
+        addMethod(version6, 913, "chipTAN-QR", "needTanMediumId", "0", "Q1S");
+        addMethod(version6, 911, "chipTAN optisch", "needTanMediumId", "0", "HHD1.4OPT");
         // Version 2 calls it tanMediumIdNeeded, a number; a method only described
         // there keeps its version 2 description.
         GWEN_DB_NODE *version2 = GWEN_DB_GetGroup(jobs, GWEN_DB_FLAGS_DEFAULT, "HITANS/2");
@@ -119,11 +131,67 @@ bool giveBankParameters(AB_BANKING *banking, uint32_t uid)
         AH_User_SetBpd(user, bpd);
         AH_Bpd_free(bpd);
         AH_User_AddTanMethod(user, 920);
+        AH_User_AddTanMethod(user, 913);
+        AH_User_AddTanMethod(user, 911);
         rv = AB_Provider_EndExclUseUser(provider, user, 0);
         AB_User_free(user);
     }
     AB_Banking_EndUseProvider(banking, provider);
     return rv >= 0;
+}
+
+// The TAN input mechanism AqBanking uses for the user, or -1 without user;
+// or sets it, if mechanism is not negative.
+int tanMechanism(AB_BANKING *banking, uint32_t uid, int mechanism = -1)
+{
+    useInstalledDefinitions();
+    AB_PROVIDER *provider = AB_Banking_BeginUseProvider(banking, BACKEND);
+    AB_USER *user = nullptr;
+    int result = -1;
+    if (AB_Provider_GetUser(provider, uid, 1, mechanism < 0 ? 1 : 0, &user) >= 0) {
+        if (mechanism >= 0) {
+            AH_User_SetSelectedTanInputMechanism(user, mechanism);
+            AB_Provider_EndExclUseUser(provider, user, 0);
+        }
+        result = AH_User_GetSelectedTanInputMechanism(user);
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(banking, provider);
+    return result;
+}
+
+// What AqBanking's own chipTAN optical mechanism makes of the bank's challenge
+// (the HHD 1.4 specification's example), down to the frames GwenGui hands on.
+QString flickerFramesThroughAqBanking(AB_BANKING *banking, uint32_t uid, const char *challenge)
+{
+    useInstalledDefinitions();
+    AB_PROVIDER *provider = AB_Banking_BeginUseProvider(banking, BACKEND);
+    AB_USER *user = nullptr;
+    QString result = QStringLiteral("(no user)");
+    if (AB_Provider_GetUser(provider, uid, 1, 1, &user) >= 0) {
+        BankingThread thread(QStringLiteral("/nonexistent"));
+        GWEN_GUI *gui = GwenGui::create(&thread);
+        GWEN_Gui_SetGui(gui);
+        FakeBankingThread::reset();
+        FakeBankingThread::answers << FakeBankingThread::answer(QStringLiteral("123456"));
+
+        AH_TAN_METHOD *method = AH_TanMethod_new();
+        AH_TanMethod_SetMethodId(method, "HHD1.4OPT");
+        AH_TAN_MECHANISM *mechanism = AH_TanMechanism_ChipTanOpt_new(method, AB_BANKING_TANMETHOD_CHIPTAN_OPTIC);
+        char tan[64] = {};
+        const int rv = AH_TanMechanism_GetTan(mechanism, user, "TAN", "Flickercode", reinterpret_cast<const uint8_t *>(challenge),
+                                              static_cast<uint32_t>(qstrlen(challenge)), tan, 1, sizeof(tan));
+        result = rv < 0 ? QStringLiteral("error %1").arg(rv)
+                        : FakeBankingThread::requests.value(0).flickerCode + QStringLiteral(" -> ") + QString::fromLatin1(tan);
+        AH_TanMechanism_free(mechanism);
+        AH_TanMethod_free(method);
+
+        GWEN_Gui_SetGui(nullptr);
+        GwenGui::destroy(gui);
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(banking, provider);
+    return result;
 }
 
 QString storedTanMedium(AB_BANKING *banking, uint32_t uid)
@@ -438,7 +506,7 @@ void tanMethodTests(AB_BANKING *banking, const QString &installedData)
     ZB_TAN_METHOD methods[16];
     useInstalledDefinitions();
     const int count = ZB_ListTanMethods(banking, uid, methods, 16);
-    Check::equal("Every method is listed once", count, 5);
+    Check::equal("Every method is listed once", count, 7);
     Check::equal("BestSign needs the name of the TAN medium", mediumNeeded(methods, count, 6920), 2);
     Check::equal("An optional name is reported as optional", mediumNeeded(methods, count, 6942), 1);
     Check::equal("A name not allowed is reported as such", mediumNeeded(methods, count, 6972), 0);
@@ -464,6 +532,48 @@ void tanMethodTests(AB_BANKING *banking, const QString &installedData)
     useInstalledDefinitions();
     rv = ZB_GetTanMediumId(banking, uid, medium, sizeof(medium));
     Check::equal("and the shim reads none", rv >= 0 ? QString::fromLatin1(medium) : QString::number(rv), QString());
+
+    Check::section("TAN input mechanism");
+    const int optical = AB_BANKING_TANMETHOD_CHIPTAN_OPTIC;
+    const int qr = AB_BANKING_TANMETHOD_CHIPTAN_QR;
+    Check::equal("chipTAN optical by its technical ID", ZB_TanMechanismFor("HHD1.4OPT", "chipTAN optisch"), optical);
+    Check::equal("also of HHD 1.3.2", ZB_TanMechanismFor("HHD1.3.2OPT", ""), optical);
+    Check::equal("chipTAN QR by its technical ID", ZB_TanMechanismFor("Q1S", "chipTAN-QR"), qr);
+    Check::equal("and an ID ending in QR", ZB_TanMechanismFor("HHD1.4QR", ""), qr);
+    Check::equal("by name where the ID says nothing: QR", ZB_TanMechanismFor("HHD1.4", "chipTAN QR"), qr);
+    Check::equal("optical", ZB_TanMechanismFor("HHD1.4", "Sm@rt-TAN optic/USB"), optical);
+    Check::equal("and in German", ZB_TanMechanismFor("", "chipTAN optisch"), optical);
+    Check::equal("chipTAN manual is left to AqBanking", ZB_TanMechanismFor("HHD1.4", "chipTAN manuell"), 0);
+    Check::equal("so is chipTAN USB", ZB_TanMechanismFor("HHD1.4USB", "chipTAN USB"), 0);
+    Check::equal("photoTAN", ZB_TanMechanismFor("MS1.0.0", "photoTAN-Verfahren"), 0);
+    Check::equal("and app approval", ZB_TanMechanismFor("Decoupled", "pushTAN 2.0"), 0);
+    Check::equal("as is a method without either", ZB_TanMechanismFor(nullptr, nullptr), 0);
+
+    useInstalledDefinitions();
+    rv = ZB_SelectTanMethod(banking, uid, 6913);
+    Check::that("chipTAN QR is selected", rv >= 0, QString::number(rv));
+    Check::equal("with the QR mechanism", tanMechanism(banking, uid), qr);
+    useInstalledDefinitions();
+    ZB_SelectTanMethod(banking, uid, 6911);
+    Check::equal("chipTAN optical with the optical one", tanMechanism(banking, uid), optical);
+    useInstalledDefinitions();
+    ZB_SelectTanMethod(banking, uid, 6920);
+    Check::equal("BestSign with AqBanking's own choice", tanMechanism(banking, uid), 0);
+    tanMechanism(banking, uid, optical);
+    useInstalledDefinitions();
+    Check::equal("A mechanism that does not fit the method is corrected", ZB_UpdateTanMechanism(banking, uid), 0);
+    Check::equal("and stored", tanMechanism(banking, uid), 0);
+    useInstalledDefinitions();
+    ZB_SelectTanMethod(banking, uid, 6913);
+    tanMechanism(banking, uid, 0);
+    useInstalledDefinitions();
+    Check::equal("one set up before the app set it gets it", ZB_UpdateTanMechanism(banking, uid), qr);
+
+    Check::equal("AqBanking's chipTAN optical makes the specification's example the frames shown",
+                 flickerFramesThroughAqBanking(banking, uid, "039870110490631098765432100812345678041,00"),
+                 QStringLiteral("F0FF714810019460F350896745230140214365874413C2030391 -> 123456"));
+    useInstalledDefinitions();
+    ZB_SelectTanMethod(banking, uid, 6920);
 
     transactionJobTests(banking, uid);
 

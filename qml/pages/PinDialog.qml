@@ -34,6 +34,7 @@ Dialog {
     property string imageUrl
     // what the text field starts with, e.g. the TAN medium's current name
     property string presetText
+    property string flickerCode
     property bool secret: true
     property bool answered: false
 

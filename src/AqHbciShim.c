@@ -37,6 +37,7 @@
 #include "aqhbci/tan/tanmethod.h"
 
 #include <gwenhywfar/error.h>
+#include <gwenhywfar/text.h>
 #include <gwenhywfar/url.h>
 
 #include <stdlib.h>
@@ -494,6 +495,95 @@ int ZB_ListTanMethods(AB_BANKING *ab, uint32_t uid, ZB_TAN_METHOD *methods, int 
     return count;
 }
 
+int ZB_TanMechanismFor(const char *methodId, const char *methodName)
+{
+    static const char *const opticalIds[] = { "HHD1*OPT", NULL };
+    static const char *const qrIds[] = { "Q1S", "HHD1*QR", NULL };
+    static const char *const opticalNames[] = { "*optisch*", "*optic*", "*flicker*", NULL };
+    static const char *const qrNames[] = { "*chipTAN*QR*", "*QR-TAN*", NULL };
+    const char *const *pattern;
+
+    if (methodId && *methodId) {
+        for (pattern = opticalIds; *pattern; pattern++) {
+            if (GWEN_Text_ComparePattern(methodId, *pattern, 0) != -1) {
+                return AB_BANKING_TANMETHOD_CHIPTAN_OPTIC;
+            }
+        }
+        for (pattern = qrIds; *pattern; pattern++) {
+            if (GWEN_Text_ComparePattern(methodId, *pattern, 0) != -1) {
+                return AB_BANKING_TANMETHOD_CHIPTAN_QR;
+            }
+        }
+    }
+    if (methodName && *methodName) {
+        for (pattern = qrNames; *pattern; pattern++) {
+            if (GWEN_Text_ComparePattern(methodName, *pattern, 0) != -1) {
+                return AB_BANKING_TANMETHOD_CHIPTAN_QR;
+            }
+        }
+        for (pattern = opticalNames; *pattern; pattern++) {
+            if (GWEN_Text_ComparePattern(methodName, *pattern, 0) != -1) {
+                return AB_BANKING_TANMETHOD_CHIPTAN_OPTIC;
+            }
+        }
+    }
+    return 0;
+}
+
+/* The mechanism for the user's selected TAN method, from its newest description. */
+static int mechanismForSelectedMethod(AB_USER *user)
+{
+    const int function = AH_User_GetSelectedTanMethod(user) % 1000;
+    const AH_TAN_METHOD_LIST *descriptions = AH_User_GetTanMethodDescriptions(user);
+    const AH_TAN_METHOD *method;
+    const AH_TAN_METHOD *newest = NULL;
+
+    for (method = descriptions ? AH_TanMethod_List_First(descriptions) : NULL; method;
+         method = AH_TanMethod_List_Next(method)) {
+        if (AH_TanMethod_GetFunction(method) == function
+                && (!newest || AH_TanMethod_GetGvVersion(method) > AH_TanMethod_GetGvVersion(newest))) {
+            newest = method;
+        }
+    }
+    return newest ? ZB_TanMechanismFor(AH_TanMethod_GetMethodId(newest), AH_TanMethod_GetMethodName(newest)) : 0;
+}
+
+int ZB_UpdateTanMechanism(AB_BANKING *ab, uint32_t uid)
+{
+    AB_PROVIDER *pro;
+    AB_USER *user = NULL;
+    int mechanism = 0;
+    int rv;
+
+    pro = AB_Banking_BeginUseProvider(ab, ZB_AQHBCI_BACKEND);
+    if (!pro) {
+        return GWEN_ERROR_NOT_FOUND;
+    }
+    /* Read first: changing the user rewrites the encrypted store. */
+    rv = AB_Provider_GetUser(pro, uid, 1, 1, &user);
+    if (rv >= 0) {
+        mechanism = mechanismForSelectedMethod(user);
+        if (mechanism != AH_User_GetSelectedTanInputMechanism(user)) {
+            AB_User_free(user);
+            user = NULL;
+            /* As in AH_Control_SetTanMechanism(): lock, modify, write back on unlock */
+            rv = AB_Provider_GetUser(pro, uid, 1, 0, &user);
+            if (rv >= 0) {
+                AH_User_SetSelectedTanInputMechanism(user, mechanism);
+                rv = AB_Provider_EndExclUseUser(pro, user, 0);
+                if (rv < 0) {
+                    AB_Provider_EndExclUseUser(pro, user, 1);
+                }
+            }
+        }
+    }
+    if (user) {
+        AB_User_free(user);
+    }
+    AB_Banking_EndUseProvider(ab, pro);
+    return rv < 0 ? rv : mechanism;
+}
+
 int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId)
 {
     AB_PROVIDER *pro;
@@ -512,6 +602,7 @@ int ZB_SelectTanMethod(AB_BANKING *ab, uint32_t uid, int methodId)
             rv = GWEN_ERROR_INVALID;
         } else {
             AH_User_SetSelectedTanMethod(user, methodId);
+            AH_User_SetSelectedTanInputMechanism(user, mechanismForSelectedMethod(user));
             rv = AB_Provider_EndExclUseUser(pro, user, 0);
             if (rv < 0) {
                 AB_Provider_EndExclUseUser(pro, user, 1);

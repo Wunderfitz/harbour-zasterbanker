@@ -273,10 +273,11 @@ void Banking::handleBankMessages(const QStringList &messages)
 }
 
 void Banking::handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
-                                         const QStringList &choices, const QImage &image, const QString &presetText)
+                                         const QStringList &choices, const QImage &image, const QString &presetText,
+                                         const QString &flickerCode)
 {
     const QString imageUrl = image.isNull() ? QString() : tanImageProvider->setImage(image);
-    emit interactionRequested(interactionId, type, title, text, choices, imageUrl, presetText);
+    emit interactionRequested(interactionId, type, title, text, choices, imageUrl, presetText, flickerCode);
 }
 
 void Banking::handleInteractionFinished(int interactionId)

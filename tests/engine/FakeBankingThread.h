@@ -38,6 +38,7 @@ struct Request {
     QStringList choices;
     QByteArray image;
     QString mimeType;
+    QString flickerCode;
 };
 
 /** What GwenGui asked, oldest first. */

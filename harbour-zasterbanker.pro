@@ -22,10 +22,12 @@ include(3rdparty/aqbanking.pri)
 SOURCES += \
     src/main.cpp \
     src/AccountModel.cpp \
+    src/AppSettings.cpp \
     src/AqHbciShim.c \
     src/Banking.cpp \
     src/BankingThread.cpp \
     src/EncryptedConfigStore.cpp \
+    src/FlickerCode.cpp \
     src/GwenGui.cpp \
     src/InstituteSearch.cpp \
     src/InstituteSearchWorker.cpp \
@@ -37,11 +39,13 @@ SOURCES += \
 
 HEADERS += \
     src/AccountModel.h \
+    src/AppSettings.h \
     src/AqHbciShim.h \
     src/Banking.h \
     src/BankingThread.h \
     src/EncryptedConfigStore.h \
     src/FinTsRegistration.h \
+    src/FlickerCode.h \
     src/GwenGui.h \
     src/InstituteSearch.h \
     src/InstituteSearchWorker.h \
@@ -57,6 +61,7 @@ DISTFILES += \
     qml/components/AboutLink.qml \
     qml/components/AboutParagraph.qml \
     qml/components/BankTotal.qml \
+    qml/components/FlickerCode.qml \
     qml/js/Format.js \
     qml/pages/AboutPage.qml \
     qml/pages/BankMessagesPage.qml \

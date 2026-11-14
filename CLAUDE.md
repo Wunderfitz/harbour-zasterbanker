@@ -258,6 +258,8 @@ is linked statically.
   with `banking.respond()` and closes itself if the bank's side gave up.
 - A photoTAN/QR-TAN challenge image is decoded on the banking thread and
   handed to QML through `TanImageProvider` (`image://tan/<n>`), in memory only.
+  A chipTAN flicker code's frames are worked out there as well (`FlickerCode`);
+  QML only switches between them.
 - The bank search (`InstituteSearch`, `InstituteSearchWorker`) runs each query
   in a worker thread with its own read-only SQLite connection. Only one runs at
   a time; when it returns and the query has changed meanwhile, it runs again
@@ -355,6 +357,61 @@ every access.
   field, which also covers changing only the name; a method that allows no name
   clears it, an optional one keeps it. Method names are the bank's text, so the
   choice dialog shows them as plain text.
+
+### TAN methods
+
+Decided 2026-11-14 by the project owner, after a Sparkasse tester got a start
+code to type into his chipTAN generator where he expected a QR code.
+
+- **The app sets AqBanking's TAN input mechanism from the TAN method.**
+  AqBanking decides how to show a TAN challenge (text, image, flicker code) by
+  the method's ZKA name first, and that is `HHD` for every chipTAN variant,
+  which its table takes for text input; the technical ID that tells the kind
+  (`Q1S` for QR, `HHD1.4OPT` for optical) is only looked at if the ZKA name
+  matched nothing. So chipTAN QR and optical came as text. AqBanking's way out
+  is a mechanism per user, which GnuCash and KMyMoney users choose by hand
+  (`aqhbci-tool4 settanmechanism`). `ZB_TanMechanismFor()` chooses it instead,
+  by technical ID (`…OPT` optical, `Q1S` and `…QR` QR), else by name
+  ("optisch", "optic", "flicker"; "chipTAN…QR", "QR-TAN"), else leaves it to
+  AqBanking (photoTAN, app approval, text TANs, and chipTAN USB, which then
+  comes as a start code). `ZB_SelectTanMethod()` sets it with the method, and
+  `ZB_UpdateTanMechanism()` brings every access up to date at start (accesses
+  set up before) and after an update of the bank data, rewriting the store only
+  on change. No AqBanking patch needed.
+- **chipTAN optical shows the flicker code** (HHD 1.4, optical interface).
+  AqBanking turns the bank's challenge into the code to send and hands it over
+  as the TAN request's "challenge"; Gwenhywfar leaves showing it to its GUIs.
+  `FlickerCode::frames()` puts the sync `0FFF` in front and each byte's low
+  half-byte first, and `FlickerCode.qml` shows each half-byte twice, clock bar
+  white then black, bit 0 to 3 to its right, white for 1, triangles above the
+  outer bars for the generator's arrows. Size and speed (5 to 40 frames per
+  second, 15 at first) can be adjusted in the TAN dialog and are kept in
+  `AppSettings`; the screen stays on while the code shows (`Nemo.KeepAlive`),
+  and the keyboard does not open over it.
+- **chipTAN QR** goes the photoTAN way, as an image (`tan_image.c`).
+- **App approval (decoupled)**, e.g. Sparkassen's pushTAN 2.0 or SecureGo
+  plus: after the bank's 3955, AqBanking asks through a message box
+  ("Approved", "Abort"), then asks the bank (`HKTAN` process S), and on 3956
+  ("not yet") shows the same box again, until approved or aborted
+  (`cbox_voptan.c`). **The app words that box itself** (2026-11-14): AqBanking's
+  plain text is not translated in 6.9.2 (only the HTML rendition is, which the
+  app drops), its "Approved" is a fuzzy entry and stays English, and the text
+  names the FinTS segment ("HKIDN") and the login. `GwenGui` recognises the box
+  by its title, translated as AqBanking translates it, takes the bank's message
+  out of the text by AqBanking's own template, and shows "Confirm in your
+  banking app" with the bank's message (filtered as ever) and one answer,
+  "Confirmed"; backing out aborts. If the same request comes again within the
+  command (same segment and login), it says the bank has not received the
+  confirmation yet. A text that does not fit the template is shown as AqBanking
+  wrote it. **When upgrading AqBanking, compare `APPROVAL_TITLE` and
+  `APPROVAL_TEXT` in `GwenGui.cpp` with `_letUserConfirmApproval()`.**
+  Known risk, not fixable without a patch: if a bank sent 3955 without a
+  challenge text, AqBanking would skip the box and ask the bank again at once,
+  in a loop without pause. Banks send a text ("Bitte bestätigen Sie…").
+- **chipTAN USB is not offered**: AqBanking needs a card reader driver as a
+  loadable plugin for it (Gwenhywfar is built without loading plugins), and
+  Harbour would not let the app reach USB. With the mechanism left to
+  AqBanking, it comes as a start code to type into the generator.
 
 ### Overview page
 
@@ -604,6 +661,10 @@ the transactions page, which a depot has no use for.
   or a second place to clean up. Every balance shows its date, the bank's or,
   if the bank gave none, the day it was fetched, so a stored one does not pass
   for current.
+- **The app's own settings are a plain file**,
+  `~/.config/de.ygriega/zasterbanker/settings.conf` (`AppSettings`, as in
+  Fernschreiber): so far only the flicker code's size and speed, nothing about
+  banking.
 - **Transactions and holdings are kept in memory only**; they are fetched on
   request. AqBanking dumps raw statements to `/tmp` if `AQHBCI_LOGBOOKED` or
   `AQHBCI_LOGNOTED` is set, so `main.cpp` unsets both.
@@ -747,8 +808,11 @@ checked on every push.
   GUI API with a stand-in banking thread (`FakeBankingThread.cpp`: every rule of
   the PIN memory, with a fake clock through `GwenGui::setClock()`, a PIN with
   umlauts and special characters handed over in ISO 8859-1, one with "€"
-  refused, the filter on the bank's texts, TAN images, message boxes, the
-  certificate check),
+  refused, the filter on the bank's texts, TAN images, flicker codes (the HHD
+  1.4 specification's example), message boxes, AqBanking's request to confirm
+  in the bank's app reworded (the bank's message filtered, segment and login
+  left out, "not received yet" only for the same request again, a text not as
+  expected shown as written), the certificate check),
   statements read the way the app reads them (AqBanking started on the
   encrypted store, its real importers with the profiles the package installs,
   merged as the aqhbci jobs merge them, then `StatementReader`: MT940, MT942,
@@ -756,7 +820,9 @@ checked on every push.
   entry without details) and .02, MT535 with all three fixes of the MT535 patch, the
   choice of balance), the TAN methods the shim lists from made-up bank
   parameters (whether a TAN medium is required, in both of HKTAN's field
-  names) and the TAN medium it stores, the jobs for transactions it finds for
+  names) and the TAN medium it stores, the TAN input mechanism it chooses for a
+  method and stores with it, AqBanking's own chipTAN optical mechanism turning
+  the specification's example challenge into the frames shown, the jobs for transactions it finds for
   made-up accounts (CAMT, MT940 or a credit card's job only where the UPD lists
   it, and whether it lists `HKCAZ`), the choice of CAMT from those, the
   account AqBanking's (patched) CAMT job names (IBAN and BIC; account number
@@ -1079,6 +1145,22 @@ project unless the owner says so.
   removal question with "Remove" and "Keep" and an escaped name shown
   literally. Not seen: the dialogs with a real bank's data, the removal
   itself, and anything on a bank.
+- 2026-11-14, tester: **Sparkasse chipTAN QR came as a start code** to type
+  into the generator; see [TAN methods](#tan-methods) for the cause and fix.
+- 2026-11-14, engine tests and emulator (5.1): the TAN input mechanism is
+  chosen and stored per method, and AqBanking's chipTAN optical mechanism turns
+  the HHD 1.4 specification's example challenge into the frames derived from
+  the specification's published code. On the emulator, the TAN dialog with
+  that code (patched into the QML): bars and triangles in place, the frames
+  changing in the code's order with bit 0 to 3 left to right, size and speed
+  changed, stored in `settings.conf` and kept when the dialog opens again, no
+  keyboard over the code. Not seen: a real generator reading it (needs a phone
+  and a generator), chipTAN QR from a real Sparkasse, and the screen staying on.
+- 2026-11-14, engine tests only: the reworded request to confirm in the bank's
+  app (see [TAN methods](#tan-methods)), from AqBanking's text as built by its
+  template, untranslated (C locale). Not seen: the dialog itself (the existing
+  message dialog with one answer), the German title being recognised on a
+  phone, and a real bank's approval.
 - Not verified yet: data centres or private banks besides Atruvia, the
   Sparkassen and the DKB, the other TAN methods (as far as is known), removing a bank access,
   and the reset after an unreadable store (`DataUnreadable`; the reset after a
@@ -1095,7 +1177,7 @@ Postbank and comdirect have been tried (2026-11-14).
 
 Iterations are decided one at a time by the project owner. Known so far:
 
-- All TAN methods FinTS supports: chipTAN optical (flicker code), chipTAN QR,
-  decoupled (app approval; AqBanking asks through a message box, which the
-  app already shows), chipTAN USB.
+- TAN methods (see [TAN methods](#tan-methods)): chipTAN optical and QR are
+  in since 2026-11-14, app approval was already; all three still to be
+  confirmed on banks. chipTAN USB is left out.
 - Transfers and more - and beyond banking: personal finances.

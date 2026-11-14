@@ -70,7 +70,8 @@ void BankingThread::run()
 
 BankingThread::Response BankingThread::requestInteraction(InteractionType type, const QString &title, const QString &text,
                                                           const QStringList &choices, const QByteArray &image,
-                                                          const QString &mimeType, const QString &presetText)
+                                                          const QString &mimeType, const QString &presetText,
+                                                          const QString &flickerCode)
 {
     Q_UNUSED(presetText)
     FakeBankingThread::Request request;
@@ -80,6 +81,7 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
     request.choices = choices;
     request.image = image;
     request.mimeType = mimeType;
+    request.flickerCode = flickerCode;
     FakeBankingThread::requests.append(request);
     if (FakeBankingThread::answers.isEmpty()) {
         Response cancelled;

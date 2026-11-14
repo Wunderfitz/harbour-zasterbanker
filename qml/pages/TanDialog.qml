@@ -19,9 +19,12 @@
 
 import QtQuick 2.2
 import Sailfish.Silica 1.0
+import Nemo.KeepAlive 1.2
+import "../components"
 
 // Shows the bank's challenge - for photoTAN and QR-TAN the image to scan
-// with the bank's app or reader - and takes the TAN.
+// with the bank's app or reader, for chipTAN optical the flicker code to hold
+// the TAN generator against - and takes the TAN.
 Dialog {
     id: tanDialog
 
@@ -33,7 +36,16 @@ Dialog {
     property var choices
     property string imageUrl
     property string presetText
+    property string flickerCode
     property bool answered: false
+
+    readonly property bool showsCode: imageUrl.length > 0 || flickerCode.length > 0
+
+    // The generator needs a while to read the code; the screen must not go dark meanwhile.
+    DisplayBlanking {
+        preventBlanking: tanDialog.flickerCode.length > 0 && tanDialog.status === PageStatus.Active
+                         && Qt.application.active
+    }
 
     canAccept: tanField.text.trim().length > 0
 
@@ -102,6 +114,81 @@ Dialog {
                 }
             }
 
+            // The size and speed the user found to suit their generator are kept.
+            FlickerCode {
+                id: flicker
+
+                readonly property int maximumWidth: column.width - 2 * Theme.horizontalPageMargin
+                readonly property int minimumWidth: Math.round(maximumWidth * 0.4)
+                readonly property int widthStep: Math.round(maximumWidth * 0.05)
+
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: tanDialog.flickerCode.length > 0
+                running: visible && Qt.application.active
+                frames: tanDialog.flickerCode
+                speed: appSettings.flickerSpeed
+                width: appSettings.flickerWidth > 0
+                       ? Math.max(minimumWidth, Math.min(maximumWidth, appSettings.flickerWidth)) : maximumWidth
+            }
+
+            Grid {
+                anchors.horizontalCenter: parent.horizontalCenter
+                visible: flicker.visible
+                columns: 4
+                rowSpacing: 0
+                columnSpacing: Theme.paddingSmall
+                verticalItemAlignment: Grid.AlignVCenter
+
+                IconButton {
+                    icon.source: "image://theme/icon-m-remove"
+                    enabled: flicker.width > flicker.minimumWidth
+                    onClicked: appSettings.flickerWidth = Math.max(flicker.minimumWidth, flicker.width - flicker.widthStep)
+                }
+                Label {
+                    width: Theme.itemSizeHuge
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.highlightColor
+                    text: qsTr("Size")
+                }
+                IconButton {
+                    icon.source: "image://theme/icon-m-add"
+                    enabled: flicker.width < flicker.maximumWidth
+                    onClicked: appSettings.flickerWidth = Math.min(flicker.maximumWidth, flicker.width + flicker.widthStep)
+                }
+                Item {
+                    width: 1
+                    height: 1
+                }
+
+                IconButton {
+                    icon.source: "image://theme/icon-m-remove"
+                    enabled: appSettings.flickerSpeed > appSettings.minimumFlickerSpeed
+                    onClicked: appSettings.flickerSpeed = appSettings.flickerSpeed - 1
+                }
+                Label {
+                    width: Theme.itemSizeHuge
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Theme.highlightColor
+                    text: qsTr("Speed %1").arg(appSettings.flickerSpeed)
+                }
+                IconButton {
+                    icon.source: "image://theme/icon-m-add"
+                    enabled: appSettings.flickerSpeed < appSettings.maximumFlickerSpeed
+                    onClicked: appSettings.flickerSpeed = appSettings.flickerSpeed + 1
+                }
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * Theme.horizontalPageMargin
+                visible: flicker.visible
+                wrapMode: Text.Wrap
+                font.pixelSize: Theme.fontSizeExtraSmall
+                color: Theme.secondaryHighlightColor
+                text: qsTr("Hold your TAN generator against the screen, its arrows on the triangles. "
+                           + "If it does not read the code, change the size or the speed, or turn up the brightness.")
+            }
+
             Label {
                 x: Theme.horizontalPageMargin
                 width: parent.width - 2 * Theme.horizontalPageMargin
@@ -114,7 +201,8 @@ Dialog {
             TextField {
                 id: tanField
                 width: parent.width
-                focus: tanDialog.imageUrl.length === 0
+                // the keyboard would cover the code
+                focus: !tanDialog.showsCode
                 label: qsTr("TAN")
                 placeholderText: label
                 inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase | Qt.ImhSensitiveData

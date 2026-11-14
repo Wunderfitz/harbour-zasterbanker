@@ -30,6 +30,7 @@ SOURCES += \
     $$ZB_ROOT/src/AccountModel.cpp \
     $$ZB_ROOT/src/AqHbciShim.c \
     $$ZB_ROOT/src/EncryptedConfigStore.cpp \
+    $$ZB_ROOT/src/FlickerCode.cpp \
     $$ZB_ROOT/src/GwenGui.cpp \
     $$ZB_ROOT/src/HoldingModel.cpp \
     $$ZB_ROOT/src/InstituteSearchWorker.cpp \
@@ -43,6 +44,7 @@ HEADERS += \
     $$ZB_ROOT/src/AqHbciShim.h \
     $$ZB_ROOT/src/BankingThread.h \
     $$ZB_ROOT/src/EncryptedConfigStore.h \
+    $$ZB_ROOT/src/FlickerCode.h \
     $$ZB_ROOT/src/GwenGui.h \
     $$ZB_ROOT/src/HoldingModel.h \
     $$ZB_ROOT/src/InstituteSearchWorker.h \

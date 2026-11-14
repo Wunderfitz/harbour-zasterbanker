@@ -32,6 +32,7 @@ Dialog {
     property var choices: []
     property string imageUrl
     property string presetText
+    property string flickerCode
     property int selectedIndex: -1
     property bool answered: false
 

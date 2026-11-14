@@ -42,7 +42,8 @@ ApplicationWindow {
                 message: text,
                 choices: choices,
                 imageUrl: imageUrl,
-                presetText: presetText
+                presetText: presetText,
+                flickerCode: flickerCode
             }
             var dialog
             switch (type) {

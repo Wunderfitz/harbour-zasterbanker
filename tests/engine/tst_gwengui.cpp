@@ -20,11 +20,13 @@
 /*
  * GwenGui, driven through Gwenhywfar's own GUI API as AqBanking drives it, with
  * a stand-in for the banking thread: the PIN memory's rules, the filter on the
- * bank's texts, the TAN image, message boxes and the certificate check.
+ * bank's texts, the TAN image and flicker code, message boxes (AqBanking's
+ * request to confirm in the bank's app reworded) and the certificate check.
  */
 
 #include "Check.h"
 #include "FakeBankingThread.h"
+#include "FlickerCode.h"
 #include "GwenGui.h"
 
 #include <aqbanking/banking.h>
@@ -88,6 +90,12 @@ bool remembered(const char *token)
     const Entry entry = askPin(token);
     return requests.size() == before && entry.result == 0;
 }
+
+// The worked example of the HHD 1.4 specification, as AqBanking turns the
+// bank's challenge into the code to send, and the frames it is shown as: the
+// sync 0FFF in front, each byte's low half-byte first.
+const char FLICKER_CODE[] = "1784011049063F059876543210041234567844312C303019";
+const char FLICKER_FRAMES[] = "F0FF714810019460F350896745230140214365874413C2030391";
 
 const char ALICE[] = "PIN_pintan_alice";
 const char BOB[] = "PIN_pintan_bob";
@@ -245,11 +253,25 @@ void tanTests()
     Check::equal("with its type", requests.value(0).mimeType, QStringLiteral("image/png"));
 
     GWEN_DB_SetIntValue(params, GWEN_DB_FLAGS_OVERWRITE_VARS, "tanMethodId", AB_BANKING_TANMETHOD_CHIPTAN_OPTIC);
+    GWEN_DB_SetCharValue(params, GWEN_DB_FLAGS_OVERWRITE_VARS, "challenge", FLICKER_CODE);
     FakeBankingThread::reset();
     answers << answer(QStringLiteral("1"));
-    askTan("Bitte Flickercode lesen", GWEN_Gui_PasswordMethod_OpticalHHD, params);
+    entry = askTan("Bitte Flickercode lesen", GWEN_Gui_PasswordMethod_OpticalHHD, params);
     Check::that("a flicker code is not taken for an image", requests.value(0).image.isEmpty());
+    Check::equal("but passed on as the frames to show", requests.value(0).flickerCode, QString::fromLatin1(FLICKER_FRAMES));
+    Check::equal("and its TAN handed to AqBanking", entry.text, QStringLiteral("1"));
     GWEN_DB_Group_free(params);
+}
+
+void flickerCodeTests()
+{
+    Check::equal("The flicker frames of the specification's example", FlickerCode::frames(QString::fromLatin1(FLICKER_CODE)),
+                 QString::fromLatin1(FLICKER_FRAMES));
+    Check::equal("lower case hex digits as well",
+                 FlickerCode::frames(QString::fromLatin1(FLICKER_CODE).toLower()), QString::fromLatin1(FLICKER_FRAMES));
+    Check::equal("An odd number of digits is no code", FlickerCode::frames(QStringLiteral("123")), QString());
+    Check::equal("neither is anything but hex digits", FlickerCode::frames(QStringLiteral("12G4")), QString());
+    Check::equal("nor nothing", FlickerCode::frames(QString()), QString());
 }
 
 void messageTests()
@@ -271,6 +293,64 @@ void messageTests()
     FakeBankingThread::reset();
     rv = GWEN_Gui_MessageBox(GWEN_GUI_MSG_FLAGS_TYPE_INFO, "Freigabe", "Text", "Erledigt", nullptr, nullptr, 0);
     Check::equal("closing a message box aborts", rv, GWEN_ERROR_USER_ABORTED);
+}
+
+// AqBanking's request to confirm in the bank's app, as cbox_voptan.c,
+// _letUserConfirmApproval(), shows it (untranslated, as here in the C locale).
+int askApproval(const char *job, const char *challenge)
+{
+    const QString plain = QString::fromUtf8(
+                "Your approval for this communication with your bank server is required.\n"
+                "Please use your smart phone app for this\n"
+                "and click \"Approved\" afterwards (%1, user %2 at %3).\n"
+                "\n"
+                "Message from bank server regarding this process:\n"
+                "%4\n").arg(QString::fromLatin1(job), QStringLiteral("tester"), QStringLiteral("12345678"),
+                            QString::fromUtf8(challenge));
+    const QByteArray text = (plain + QStringLiteral("<html><p>Your approval ...</p></html>")).toUtf8();
+    return GWEN_Gui_MessageBox(GWEN_GUI_MSG_FLAGS_TYPE_INFO | GWEN_GUI_MSG_FLAGS_CONFIRM_B1,
+                               "Decoupled Mode: Waiting for Approval", text.constData(), "Approved", "Abort", nullptr, 0);
+}
+
+void approvalTests()
+{
+    const QString notYet = QStringLiteral("Your bank has not received your confirmation yet.");
+    FakeBankingThread::reset();
+    answers << FakeBankingThread::choose(1);
+    int rv = askApproval("HKIDN", "Bitte best\xc3\xa4tigen Sie den Vorgang in Ihrer <b>S-pushTAN</b>-App.<img src=\"x\">");
+    Check::equal("Confirming in the bank's app goes on as AqBanking's \"Approved\"", rv, 1);
+    const FakeBankingThread::Request request = requests.value(0);
+    Check::equal("its box gets the app's own title", request.title, QStringLiteral("Confirm in your banking app"));
+    Check::equal("and one answer, the app's", request.choices.join(QLatin1Char('|')), QStringLiteral("Confirmed"));
+    Check::that("the bank's message is shown, filtered",
+                request.text.endsWith(QString::fromUtf8("Your bank says:<br>Bitte best\xc3\xa4tigen Sie den Vorgang in Ihrer <b>S-pushTAN</b>-App.")),
+                request.text);
+    Check::that("without the FinTS segment and the login", !request.text.contains(QStringLiteral("HKIDN"))
+                && !request.text.contains(QStringLiteral("tester")), request.text);
+    Check::that("and at first without saying it is not there yet", !request.text.contains(notYet));
+
+    answers << FakeBankingThread::choose(1);
+    askApproval("HKIDN", "Bitte freigeben");
+    Check::that("Asked the same again, the bank has no confirmation yet", requests.value(1).text.startsWith(notYet),
+                requests.value(1).text);
+    answers << FakeBankingThread::choose(1);
+    askApproval("HKCAZ", "Bitte freigeben");
+    Check::that("an approval of another request is a new one", !requests.value(2).text.contains(notYet));
+    GwenGui::finishCommand();
+    answers << FakeBankingThread::choose(1);
+    askApproval("HKCAZ", "Bitte freigeben");
+    Check::that("so is the same in the next command", !requests.value(3).text.contains(notYet));
+
+    rv = askApproval("HKIDN", "Bitte freigeben");
+    Check::equal("Backing out aborts, as AqBanking's \"Abort\"", rv, GWEN_ERROR_USER_ABORTED);
+
+    FakeBankingThread::reset();
+    answers << FakeBankingThread::choose(1);
+    GWEN_Gui_MessageBox(GWEN_GUI_MSG_FLAGS_TYPE_INFO, "Decoupled Mode: Waiting for Approval",
+                        "Some other wording <b>HKIDN</b><img src=\"x\">", "Approved", "Abort", nullptr, 0);
+    Check::that("A text that does not read as expected is shown as AqBanking wrote it, filtered",
+                requests.value(0).text.endsWith(QStringLiteral("<br><br>Some other wording <b>HKIDN</b>")), requests.value(0).text);
+    GwenGui::finishCommand();
 }
 
 void certificateTests()
@@ -306,7 +386,9 @@ void runGwenGuiTests()
 
     pinTests();
     tanTests();
+    flickerCodeTests();
     messageTests();
+    approvalTests();
     certificateTests();
 
     GwenGui::setClock(nullptr);

@@ -34,6 +34,7 @@ Dialog {
     property var choices: []
     property string imageUrl
     property string presetText
+    property string flickerCode
     property bool answered: false
 
     function answer(choice) {

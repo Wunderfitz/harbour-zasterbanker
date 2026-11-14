@@ -130,7 +130,8 @@ signals:
     void progressTextChanged();
     void bankMessagesChanged();
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
-                              const QStringList &choices, const QString &imageUrl, const QString &presetText);
+                              const QStringList &choices, const QString &imageUrl, const QString &presetText,
+                              const QString &flickerCode);
     void interactionFinished(int interactionId);
     void operationFinished(int operation, bool success, const QString &message);
 
@@ -144,7 +145,8 @@ private slots:
     void handleProgress(const QString &text);
     void handleBankMessages(const QStringList &messages);
     void handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
-                                    const QStringList &choices, const QImage &image, const QString &presetText);
+                                    const QStringList &choices, const QImage &image, const QString &presetText,
+                                    const QString &flickerCode);
     void handleInteractionFinished(int interactionId);
 
 private:

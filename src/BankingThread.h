@@ -114,11 +114,14 @@ public:
     QString dataFilePath() const;
 
     /* Banking thread, called from GwenGui */
-    /* presetText: what a text field starts with (TextInteraction) */
+    /*
+     * presetText: what a text field starts with (TextInteraction);
+     * flickerCode: the frames of a chipTAN flicker code (TanInteraction), see FlickerCode
+     */
     Response requestInteraction(InteractionType type, const QString &title, const QString &text,
                                 const QStringList &choices = QStringList(),
                                 const QByteArray &image = QByteArray(), const QString &mimeType = QString(),
-                                const QString &presetText = QString());
+                                const QString &presetText = QString(), const QString &flickerCode = QString());
     void reportProgress(const QString &text);
     void reportError(const QString &text);
     bool isCancelled() const;
@@ -136,7 +139,8 @@ signals:
     void progress(const QString &text);
     /* A challenge image (photoTAN, QR-TAN) arrives decoded, as decoding is this thread's job too. */
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
-                              const QStringList &choices, const QImage &image, const QString &presetText);
+                              const QStringList &choices, const QImage &image, const QString &presetText,
+                              const QString &flickerCode);
     void interactionFinished(int interactionId);
 
 protected:

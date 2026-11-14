@@ -29,6 +29,7 @@
 #include <gcrypt.h>
 
 #include "AccountModel.h"
+#include "AppSettings.h"
 #include "Banking.h"
 #include "InstituteSearch.h"
 #include "TanImageProvider.h"
@@ -67,11 +68,13 @@ int main(int argc, char *argv[])
     TanImageProvider *tanImageProvider = new TanImageProvider();
     Banking banking(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation), tanImageProvider);
     InstituteSearch instituteSearch(SailfishApp::pathTo(QStringLiteral("db/fints_institutes.db")).toLocalFile());
+    AppSettings appSettings;
 
     QScopedPointer<QQuickView> view(SailfishApp::createView());
     view->engine()->addImageProvider(QStringLiteral("tan"), tanImageProvider);
     view->rootContext()->setContextProperty(QStringLiteral("banking"), &banking);
     view->rootContext()->setContextProperty(QStringLiteral("instituteSearch"), &instituteSearch);
+    view->rootContext()->setContextProperty(QStringLiteral("appSettings"), &appSettings);
     view->setSource(SailfishApp::pathToMainQml());
     view->show();
 

@@ -231,7 +231,8 @@ bool BankingThread::isCancelled() const
 
 BankingThread::Response BankingThread::requestInteraction(InteractionType type, const QString &title, const QString &text,
                                                           const QStringList &choices, const QByteArray &image,
-                                                          const QString &mimeType, const QString &presetText)
+                                                          const QString &mimeType, const QString &presetText,
+                                                          const QString &flickerCode)
 {
     Response response;
     response.accepted = false;
@@ -260,7 +261,7 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
         interactionAnswered = false;
     }
 
-    emit interactionRequested(interactionId, type, title, text, choices, decodedImage, presetText);
+    emit interactionRequested(interactionId, type, title, text, choices, decodedImage, presetText, flickerCode);
 
     {
         QMutexLocker locker(&mutex);
@@ -428,6 +429,16 @@ void BankingThread::executeInitialize(Command &command)
     }
 
     loadStoredBalances();
+    // The TAN input mechanism follows the selected TAN method (chipTAN QR and
+    // optical); accesses set up before the app set it get it now.
+    ZB_USER_INFO users[MAX_USERS];
+    const int userCount = ZB_ListUsers(banking, users, MAX_USERS);
+    for (int i = 0; i < userCount; i++) {
+        const int mechanism = ZB_UpdateTanMechanism(banking, users[i].uid);
+        if (mechanism < 0) {
+            qWarning() << "Could not set the TAN input mechanism" << mechanism;
+        }
+    }
     emit initialized(InitializationSucceeded, QString());
     publishAccounts();
 }
@@ -836,6 +847,8 @@ void BankingThread::executeUpdateBankAccess(const Command &command)
     uint32_t unlisted[MAX_UNLISTED_ACCOUNTS];
     int unlistedCount = 0;
     int rv = ZB_GetAccounts(banking, uid, unlisted, MAX_UNLISTED_ACCOUNTS, &unlistedCount);
+    // the bank's descriptions of its TAN methods may have changed
+    ZB_UpdateTanMechanism(banking, uid);
     publishAccounts();
     if (rv > 0 && unlistedCount > 0) {
         QList<uint32_t> accountIds;
