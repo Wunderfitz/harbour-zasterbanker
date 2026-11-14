@@ -601,22 +601,22 @@
     </message>
     <message>
         <location filename="../qml/pages/OverviewPage.qml" line="123"/>
-        <location filename="../qml/pages/OverviewPage.qml" line="148"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="151"/>
         <source>Refresh balances</source>
         <translation>Kontostände aktualisieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="166"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="169"/>
         <source>Remove this bank access</source>
         <translation>Diesen Bankzugang entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="170"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="173"/>
         <source>Removing %1</source>
         <translation>Entferne %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="156"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="159"/>
         <source>Update accounts and bank data</source>
         <translation>Konten und Bankdaten aktualisieren</translation>
     </message>
@@ -626,57 +626,57 @@
         <translation>PINs jetzt vergessen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="161"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="164"/>
         <source>Change TAN method</source>
         <translation>TAN-Verfahren ändern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="197"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="208"/>
         <source>PIN remembered %1</source>
         <translation>PIN gemerkt %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="216"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="227"/>
         <source>No accounts. Press and hold the bank&apos;s name to update the accounts or to remove the bank access.</source>
         <translation>Keine Konten. Halten Sie den Namen der Bank gedrückt, um die Konten zu aktualisieren oder den Bankzugang zu entfernen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="262"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="273"/>
         <source>Account %1</source>
         <translation>Konto %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="313"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="324"/>
         <source>No bank access yet</source>
         <translation>Noch kein Bankzugang</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="314"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="325"/>
         <source>Pull down to add your bank</source>
         <translation>Herunterziehen, um Ihre Bank hinzuzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="319"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="330"/>
         <source>Stored data unreadable</source>
         <translation>Gespeicherte Daten unlesbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="319"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="330"/>
         <source>Banking unavailable</source>
         <translation>Banking nicht verfügbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="321"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="332"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation>Herunterziehen, um alle Daten zu löschen und neu zu beginnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="322"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="333"/>
         <source>Pull down to try again, or to delete all data and start afresh.</source>
         <translation>Herunterziehen, um es erneut zu versuchen oder um alle Daten zu löschen und neu zu beginnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="344"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="355"/>
         <source>Unlocking your data...</source>
         <translation>Entsperre Ihre Daten...</translation>
     </message>

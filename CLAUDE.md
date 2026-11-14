@@ -649,7 +649,11 @@ the transactions page, which a depot has no use for.
   - **The overview shows how long each PIN is still kept** (added 2026-11-15
     on a tester's request): "PIN remembered 4:07" below the bank's name,
     right-aligned and in the secondary colour so as not to draw the eye
-    (project owner, 2026-11-15), counting down. After every command, and whenever one is wiped,
+    (project owner, 2026-11-15), counting down. The bank's name is a label
+    styled like a `SectionHeader` (whose padding above put name and countdown
+    off-centre in the pressed row) in a header of fixed height,
+    `Theme.itemSizeSmall` or more, with both centred in it, so the row neither
+    looks lopsided when pressed nor moves when the countdown comes or goes. After every command, and whenever one is wiped,
     `BankingThread::publishPins()` maps `GwenGui::rememberedPins()` (token and
     time left, only PINs the bank accepted and no command is using) to bank
     accesses by AqBanking's token name, `PIN_<bank code>_<login>`, and hands

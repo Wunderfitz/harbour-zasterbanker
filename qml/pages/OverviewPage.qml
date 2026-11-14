@@ -141,7 +141,10 @@ Page {
                 id: bankHeader
 
                 visible: accountRow.firstOfBank
-                contentHeight: bankHeaderColumn.height
+                // as high as a section header, the text centred in it, also when
+                // pressed; the same with or without the countdown, so that the
+                // list does not move when it comes or goes
+                contentHeight: Math.max(Theme.itemSizeSmall, bankHeaderColumn.height + 2 * Theme.paddingSmall)
                 enabled: !banking.busy
                 menu: ContextMenu {
                     MenuItem {
@@ -178,8 +181,16 @@ Page {
                     id: bankHeaderColumn
 
                     width: parent.width
+                    anchors.verticalCenter: parent.verticalCenter
 
-                    SectionHeader {
+                    // looks as a SectionHeader, without its padding above
+                    Label {
+                        x: Theme.horizontalPageMargin
+                        width: parent.width - 2 * Theme.horizontalPageMargin
+                        horizontalAlignment: Text.AlignRight
+                        font.pixelSize: Theme.fontSizeSmall
+                        truncationMode: TruncationMode.Fade
+                        color: Theme.highlightColor
                         text: bankName
                     }
 
