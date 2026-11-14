@@ -20,6 +20,8 @@
 #ifndef GWENGUI_H
 #define GWENGUI_H
 
+#include <QByteArray>
+#include <QMap>
 #include <QtGlobal>
 
 #include <gwenhywfar/gui.h>
@@ -55,6 +57,12 @@ void finishCommand();
 qint64 forgetExpiredPins();
 /** Wipes all remembered PINs. */
 void forgetPins();
+/**
+ * The PINs kept beyond the current command, by AqBanking's token name
+ * ("PIN_<bank code>_<login>"), with the milliseconds until they are wiped.
+ * Nothing about the PINs themselves.
+ */
+QMap<QByteArray, qint64> rememberedPins();
 
 /**
  * For the tests only: the clock the five minutes are measured with, in

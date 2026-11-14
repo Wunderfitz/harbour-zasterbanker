@@ -128,7 +128,7 @@
 <context>
     <name>Banking</name>
     <message>
-        <location filename="../src/Banking.cpp" line="220"/>
+        <location filename="../src/Banking.cpp" line="237"/>
         <source>Your data was deleted, but its key could not be removed from Sailfish Secrets: %1</source>
         <translation>Ihre Daten wurden gelöscht, aber ihr Schlüssel konnte nicht aus Sailfish Secrets entfernt werden: %1</translation>
     </message>
@@ -136,217 +136,217 @@
 <context>
     <name>BankingThread</name>
     <message>
-        <location filename="../src/BankingThread.cpp" line="412"/>
+        <location filename="../src/BankingThread.cpp" line="438"/>
         <source>Your stored data cannot be decrypted.</source>
         <translation>Ihre gespeicherten Daten können nicht entschlüsselt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="427"/>
+        <location filename="../src/BankingThread.cpp" line="453"/>
         <source>The banking library could not be started (%1).</source>
         <translation>Die Banking-Bibliothek konnte nicht gestartet werden (%1).</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="450"/>
-        <location filename="../src/BankingThread.cpp" line="634"/>
-        <location filename="../src/BankingThread.cpp" line="696"/>
-        <location filename="../src/BankingThread.cpp" line="789"/>
-        <location filename="../src/BankingThread.cpp" line="840"/>
-        <location filename="../src/BankingThread.cpp" line="916"/>
-        <location filename="../src/BankingThread.cpp" line="941"/>
+        <location filename="../src/BankingThread.cpp" line="476"/>
+        <location filename="../src/BankingThread.cpp" line="660"/>
+        <location filename="../src/BankingThread.cpp" line="722"/>
+        <location filename="../src/BankingThread.cpp" line="815"/>
+        <location filename="../src/BankingThread.cpp" line="866"/>
+        <location filename="../src/BankingThread.cpp" line="942"/>
+        <location filename="../src/BankingThread.cpp" line="967"/>
         <source>Banking is not available.</source>
         <translation>Das Banking ist nicht verfügbar.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="468"/>
+        <location filename="../src/BankingThread.cpp" line="494"/>
         <source>The bank access could not be created.</source>
         <translation>Der Bankzugang konnte nicht angelegt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="473"/>
+        <location filename="../src/BankingThread.cpp" line="499"/>
         <source>Connecting to the bank...</source>
         <translation>Verbinde mit der Bank...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="476"/>
+        <location filename="../src/BankingThread.cpp" line="502"/>
         <source>The bank did not accept the connection.</source>
         <translation>Die Bank hat die Verbindung nicht angenommen.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="491"/>
+        <location filename="../src/BankingThread.cpp" line="517"/>
         <source>Retrieving your accounts...</source>
         <translation>Rufe Ihre Konten ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="496"/>
-        <location filename="../src/BankingThread.cpp" line="866"/>
+        <location filename="../src/BankingThread.cpp" line="522"/>
+        <location filename="../src/BankingThread.cpp" line="892"/>
         <source>The bank did not list your accounts.</source>
         <translation>Die Bank hat Ihre Konten nicht übermittelt.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="497"/>
-        <location filename="../src/BankingThread.cpp" line="867"/>
+        <location filename="../src/BankingThread.cpp" line="523"/>
+        <location filename="../src/BankingThread.cpp" line="893"/>
         <source>The bank listed no accounts for this access.</source>
         <translation>Die Bank hat für diesen Zugang keine Konten genannt.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="528"/>
-        <location filename="../src/BankingThread.cpp" line="557"/>
+        <location filename="../src/BankingThread.cpp" line="554"/>
+        <location filename="../src/BankingThread.cpp" line="583"/>
         <source>TAN method</source>
         <translation>TAN-Verfahren</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="529"/>
+        <location filename="../src/BankingThread.cpp" line="555"/>
         <source>Your bank named no TAN method for this access at the last contact. Update the accounts and bank data to ask it again.</source>
         <translation>Ihre Bank hat für diesen Zugang beim letzten Kontakt kein TAN-Verfahren genannt. Aktualisieren Sie Konten und Bankdaten, um erneut nachzufragen.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="551"/>
+        <location filename="../src/BankingThread.cpp" line="577"/>
         <source>You currently use %1.</source>
         <translation>Sie nutzen derzeit %1.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="552"/>
+        <location filename="../src/BankingThread.cpp" line="578"/>
         <source>Which of the TAN methods your bank allows for this access do you want to use? If one is missing, update the accounts and bank data first.</source>
         <translation>Welches der TAN-Verfahren, die Ihre Bank für diesen Zugang zulässt, möchten Sie nutzen? Fehlt eines, aktualisieren Sie zuerst Konten und Bankdaten.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="555"/>
+        <location filename="../src/BankingThread.cpp" line="581"/>
         <source>Your bank offers several ways to confirm with a TAN. Which one do you use?</source>
         <translation>Ihre Bank bietet mehrere Verfahren an, um mit einer TAN zu bestätigen. Welches nutzen Sie?</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="568"/>
+        <location filename="../src/BankingThread.cpp" line="594"/>
         <source>The TAN method could not be stored (%1).</source>
         <translation>Das TAN-Verfahren konnte nicht gespeichert werden (%1).</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="599"/>
+        <location filename="../src/BankingThread.cpp" line="625"/>
         <source>TAN medium</source>
         <translation>TAN-Medium</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="600"/>
+        <location filename="../src/BankingThread.cpp" line="626"/>
         <source>Your bank needs the name of the device or app you confirm with. You find it in the security settings of your online banking or of the bank&apos;s app, e.g. under &quot;Sicherheitsverfahren&quot; for BestSign. Enter it exactly as shown there, capitals included.</source>
         <translation>Ihre Bank braucht den Namen des Geräts oder der App, mit der Sie freigeben. Sie finden ihn in den Sicherheitseinstellungen Ihres Online-Bankings oder der App Ihrer Bank, bei BestSign z. B. unter „Sicherheitsverfahren“. Geben Sie ihn genau so ein, wie er dort steht, auch die Groß- und Kleinschreibung.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="611"/>
+        <location filename="../src/BankingThread.cpp" line="637"/>
         <source>The name can have up to %1 characters.</source>
         <translation>Der Name darf bis zu %1 Zeichen lang sein.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="617"/>
+        <location filename="../src/BankingThread.cpp" line="643"/>
         <source>The name contains a character that cannot be sent to the bank.</source>
         <translation>Der Name enthält ein Zeichen, das nicht an die Bank übertragen werden kann.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="623"/>
+        <location filename="../src/BankingThread.cpp" line="649"/>
         <source>The name of the TAN medium could not be stored (%1).</source>
         <translation>Der Name des TAN-Mediums konnte nicht gespeichert werden (%1).</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="649"/>
-        <location filename="../src/BankingThread.cpp" line="669"/>
+        <location filename="../src/BankingThread.cpp" line="675"/>
+        <location filename="../src/BankingThread.cpp" line="695"/>
         <source>There are no accounts.</source>
         <translation>Es gibt keine Konten.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="674"/>
+        <location filename="../src/BankingThread.cpp" line="700"/>
         <source>Retrieving balances...</source>
         <translation>Rufe Kontostände ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="713"/>
+        <location filename="../src/BankingThread.cpp" line="739"/>
         <source>Retrieving transactions...</source>
         <translation>Rufe Umsätze ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="746"/>
+        <location filename="../src/BankingThread.cpp" line="772"/>
         <source>The transactions could not be retrieved.</source>
         <translation>Die Umsätze konnten nicht abgerufen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="743"/>
+        <location filename="../src/BankingThread.cpp" line="769"/>
         <source>The bank&apos;s answer could not be read.</source>
         <translation>Die Antwort der Bank konnte nicht gelesen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="744"/>
+        <location filename="../src/BankingThread.cpp" line="770"/>
         <source>The bank does not offer transactions for this account.</source>
         <translation>Die Bank bietet für dieses Konto keine Umsätze an.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="687"/>
+        <location filename="../src/BankingThread.cpp" line="713"/>
         <source>The bank sent no balances.</source>
         <translation>Die Bank hat keine Kontostände übermittelt.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="794"/>
+        <location filename="../src/BankingThread.cpp" line="820"/>
         <source>Retrieving holdings...</source>
         <translation>Rufe Depotbestand ab...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="825"/>
+        <location filename="../src/BankingThread.cpp" line="851"/>
         <source>The bank does not offer the holdings of this account.</source>
         <translation>Die Bank bietet den Bestand dieses Depots nicht an.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="826"/>
+        <location filename="../src/BankingThread.cpp" line="852"/>
         <source>The holdings could not be retrieved.</source>
         <translation>Der Depotbestand konnte nicht abgerufen werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="845"/>
+        <location filename="../src/BankingThread.cpp" line="871"/>
         <source>Updating accounts and bank data...</source>
         <translation>Aktualisiere Konten und Bankdaten...</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="891"/>
+        <location filename="../src/BankingThread.cpp" line="917"/>
         <source>Account %1</source>
         <translation>Konto %1</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="894"/>
+        <location filename="../src/BankingThread.cpp" line="920"/>
         <source>Accounts no longer listed</source>
         <translation>Nicht mehr genannte Konten</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="895"/>
+        <location filename="../src/BankingThread.cpp" line="921"/>
         <source>Your bank no longer lists these accounts for this access:</source>
         <translation>Ihre Bank nennt diese Konten für diesen Zugang nicht mehr:</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="897"/>
+        <location filename="../src/BankingThread.cpp" line="923"/>
         <source>Remove them from Zaster Banker? This changes nothing at the bank.</source>
         <translation>Aus Zaster Banker entfernen? Bei der Bank ändert das nichts.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="898"/>
+        <location filename="../src/BankingThread.cpp" line="924"/>
         <source>Remove</source>
         <translation>Entfernen</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="898"/>
+        <location filename="../src/BankingThread.cpp" line="924"/>
         <source>Keep</source>
         <translation>Behalten</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="946"/>
+        <location filename="../src/BankingThread.cpp" line="972"/>
         <source>The bank access could not be removed.</source>
         <translation>Der Bankzugang konnte nicht entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="956"/>
+        <location filename="../src/BankingThread.cpp" line="982"/>
         <source>The stored data could not be removed.</source>
         <translation>Die gespeicherten Daten konnten nicht entfernt werden.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="1116"/>
+        <location filename="../src/BankingThread.cpp" line="1165"/>
         <source>Cancelled.</source>
         <translation>Abgebrochen.</translation>
     </message>
     <message>
-        <location filename="../src/BankingThread.cpp" line="1121"/>
+        <location filename="../src/BankingThread.cpp" line="1170"/>
         <source>%1 (Error %2)</source>
         <translation>%1 (Fehler %2)</translation>
     </message>
@@ -433,57 +433,57 @@
 <context>
     <name>GwenGui</name>
     <message>
-        <location filename="../src/GwenGui.cpp" line="237"/>
+        <location filename="../src/GwenGui.cpp" line="241"/>
         <source>The TAN contains a character that cannot be sent to the bank.</source>
         <translation>Die TAN enthält ein Zeichen, das nicht an die Bank übertragen werden kann.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="238"/>
+        <location filename="../src/GwenGui.cpp" line="242"/>
         <source>The PIN contains a character that cannot be sent to the bank.</source>
         <translation>Die PIN enthält ein Zeichen, das nicht an die Bank übertragen werden kann.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="243"/>
+        <location filename="../src/GwenGui.cpp" line="247"/>
         <source>The TAN has an invalid length.</source>
         <translation>Die TAN hat eine ungültige Länge.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="244"/>
+        <location filename="../src/GwenGui.cpp" line="248"/>
         <source>The PIN has an invalid length.</source>
         <translation>Die PIN hat eine ungültige Länge.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="339"/>
+        <location filename="../src/GwenGui.cpp" line="343"/>
         <source>Your bank has not received your confirmation yet.</source>
         <translation>Ihre Bank hat Ihre Bestätigung noch nicht erhalten.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="342"/>
+        <location filename="../src/GwenGui.cpp" line="346"/>
         <source>Your bank asks you to confirm this in its app. Confirm there, then come back and tap &quot;Confirmed&quot;.</source>
         <translation>Ihre Bank bittet Sie, dies in ihrer App zu bestätigen. Bestätigen Sie dort, kommen Sie dann zurück und tippen Sie auf „Bestätigt“.</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="351"/>
+        <location filename="../src/GwenGui.cpp" line="355"/>
         <source>Your bank says:</source>
         <translation>Ihre Bank schreibt:</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="357"/>
+        <location filename="../src/GwenGui.cpp" line="361"/>
         <source>Confirm in your banking app</source>
         <translation>In der Banking-App bestätigen</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="358"/>
+        <location filename="../src/GwenGui.cpp" line="362"/>
         <source>Confirmed</source>
         <translation>Bestätigt</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="374"/>
+        <location filename="../src/GwenGui.cpp" line="378"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../src/GwenGui.cpp" line="461"/>
+        <location filename="../src/GwenGui.cpp" line="465"/>
         <source>The bank&apos;s server could not prove its identity, the connection was refused. %1</source>
         <translation>Der Server der Bank konnte seine Identität nicht nachweisen, die Verbindung wurde abgelehnt. %1</translation>
     </message>
@@ -570,103 +570,113 @@
 <context>
     <name>OverviewPage</name>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="73"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="89"/>
         <source>About Zaster Banker</source>
         <translation>Über Zaster Banker</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="77"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="93"/>
         <source>Delete all data</source>
         <translation>Alle Daten löschen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="79"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="95"/>
         <source>Deleting all data</source>
         <translation>Lösche alle Daten</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="82"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="98"/>
         <source>Try again</source>
         <translation>Erneut versuchen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="88"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="104"/>
         <source>Messages from the bank</source>
         <translation>Meldungen der Bank</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="95"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="117"/>
         <source>Add bank access</source>
         <translation>Bankzugang hinzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="101"/>
-        <location filename="../qml/pages/OverviewPage.qml" line="126"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="123"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="148"/>
         <source>Refresh balances</source>
         <translation>Kontostände aktualisieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="144"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="166"/>
         <source>Remove this bank access</source>
         <translation>Diesen Bankzugang entfernen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="148"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="170"/>
         <source>Removing %1</source>
         <translation>Entferne %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="134"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="156"/>
         <source>Update accounts and bank data</source>
         <translation>Konten und Bankdaten aktualisieren</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="139"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="112"/>
+        <source>Forget PINs now</source>
+        <translation>PINs jetzt vergessen</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/OverviewPage.qml" line="161"/>
         <source>Change TAN method</source>
         <translation>TAN-Verfahren ändern</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="175"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="188"/>
+        <source>PIN remembered %1</source>
+        <translation>PIN gemerkt %1</translation>
+    </message>
+    <message>
+        <location filename="../qml/pages/OverviewPage.qml" line="218"/>
         <source>No accounts. Press and hold the bank&apos;s name to update the accounts or to remove the bank access.</source>
         <translation>Keine Konten. Halten Sie den Namen der Bank gedrückt, um die Konten zu aktualisieren oder den Bankzugang zu entfernen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="221"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="264"/>
         <source>Account %1</source>
         <translation>Konto %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="272"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="315"/>
         <source>No bank access yet</source>
         <translation>Noch kein Bankzugang</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="273"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="316"/>
         <source>Pull down to add your bank</source>
         <translation>Herunterziehen, um Ihre Bank hinzuzufügen</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="278"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="321"/>
         <source>Stored data unreadable</source>
         <translation>Gespeicherte Daten unlesbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="278"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="321"/>
         <source>Banking unavailable</source>
         <translation>Banking nicht verfügbar</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="280"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="323"/>
         <source>Pull down to delete all data and start afresh.</source>
         <translation>Herunterziehen, um alle Daten zu löschen und neu zu beginnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="281"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="324"/>
         <source>Pull down to try again, or to delete all data and start afresh.</source>
         <translation>Herunterziehen, um es erneut zu versuchen oder um alle Daten zu löschen und neu zu beginnen.</translation>
     </message>
     <message>
-        <location filename="../qml/pages/OverviewPage.qml" line="303"/>
+        <location filename="../qml/pages/OverviewPage.qml" line="346"/>
         <source>Unlocking your data...</source>
         <translation>Entsperre Ihre Daten...</translation>
     </message>
@@ -726,23 +736,23 @@
 <context>
     <name>TanDialog</name>
     <message>
-        <location filename="../qml/pages/TanDialog.qml" line="86"/>
-        <location filename="../qml/pages/TanDialog.qml" line="206"/>
+        <location filename="../qml/pages/TanDialog.qml" line="88"/>
+        <location filename="../qml/pages/TanDialog.qml" line="208"/>
         <source>TAN</source>
         <translation>TAN</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TanDialog.qml" line="151"/>
+        <location filename="../qml/pages/TanDialog.qml" line="153"/>
         <source>Size</source>
         <translation>Größe</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TanDialog.qml" line="172"/>
+        <location filename="../qml/pages/TanDialog.qml" line="174"/>
         <source>Speed %1</source>
         <translation>Tempo %1</translation>
     </message>
     <message>
-        <location filename="../qml/pages/TanDialog.qml" line="188"/>
+        <location filename="../qml/pages/TanDialog.qml" line="190"/>
         <source>Hold your TAN generator against the screen, its arrows on the triangles. If it does not read the code, change the size or the speed, or turn up the brightness.</source>
         <translation>Halten Sie Ihren TAN-Generator an den Bildschirm, seine Pfeile auf den Dreiecken. Liest er den Code nicht, ändern Sie Größe oder Tempo oder erhöhen Sie die Helligkeit.</translation>
     </message>

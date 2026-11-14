@@ -56,6 +56,7 @@ ApplicationWindow {
                 break
             case Banking.TanInteraction:
                 dialog = "pages/TanDialog.qml"
+                properties.digitsOnly = digitsOnly
                 break
             case Banking.ChoiceInteraction:
                 dialog = "pages/TanMethodDialog.qml"

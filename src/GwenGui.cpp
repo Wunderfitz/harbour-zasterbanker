@@ -207,6 +207,10 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
     QByteArray image;
     QString mimeType;
     QString flicker;
+    // The bank says per TAN method whether its TANs are numeric (HITANS,
+    // "Erlaubtes Format": 1 alphanumeric, 2 numeric); FinTS itself allows any.
+    const bool digitsOnly = isTan && methodParams
+            && qstrcmp(GWEN_DB_GetCharValue(methodParams, "tanMethod/formatId", 0, ""), "2") == 0;
     if (isTan && (methodId & GWEN_Gui_PasswordMethod_Mask) == GWEN_Gui_PasswordMethod_OpticalHHD && methodParams) {
         const int tanMethod = GWEN_DB_GetIntValue(methodParams, "tanMethodId", 0, AB_BANKING_TANMETHOD_TEXT);
         if (tanMethod == AB_BANKING_TANMETHOD_CHIPTAN_OPTIC) {
@@ -229,7 +233,7 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
     BankingThread::Response response = bankingThread->requestInteraction(
                 isTan ? BankingThread::TanInteraction : BankingThread::PinInteraction,
                 plainText(title), isTan ? styledText(text) : plainText(text), QStringList(), image, mimeType,
-                QString(), flicker);
+                QString(), flicker, digitsOnly);
     if (!response.accepted) {
         return GWEN_ERROR_USER_ABORTED;
     }
@@ -554,6 +558,19 @@ qint64 forgetExpiredPins()
 void setClock(qint64 (*clock)())
 {
     now = clock ? clock : bootTime;
+}
+
+QMap<QByteArray, qint64> rememberedPins()
+{
+    QMap<QByteArray, qint64> result;
+    const qint64 current = now();
+    for (auto pin = pins.constBegin(); pin != pins.constEnd(); ++pin) {
+        // A PIN in use by the running command, or not yet accepted, is not kept yet.
+        if (pin.value().accepted && !pin.value().usedByCommand) {
+            result.insert(pin.key(), qMax<qint64>(0, pin.value().lastUsed + pinLifetime - current));
+        }
+    }
+    return result;
 }
 
 void forgetPins()

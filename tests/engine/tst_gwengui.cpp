@@ -216,6 +216,38 @@ void pinTests()
     GwenGui::forgetPins();
 }
 
+// What the overview shows: the PINs kept, with their time left.
+void rememberedPinTests()
+{
+    FakeBankingThread::reset();
+    GwenGui::forgetPins();
+    fakeTime = 100 * MINUTE;
+    Check::that("No PIN is reported as remembered at first", GwenGui::rememberedPins().isEmpty());
+
+    answers << answer(QStringLiteral("12345"));
+    askPin(ALICE);
+    Check::that("nor one not yet accepted by the bank", GwenGui::rememberedPins().isEmpty());
+    bankSays(ALICE, GWEN_Gui_PasswordStatus_Ok);
+    Check::that("nor one in use by the running command", GwenGui::rememberedPins().isEmpty());
+    GwenGui::finishCommand();
+    QMap<QByteArray, qint64> pins = GwenGui::rememberedPins();
+    Check::equal("A PIN kept after its command is reported", pins.keys().size(), 1);
+    Check::equal("by its token, with 5 minutes left", pins.value(ALICE), 5 * MINUTE);
+    fakeTime += 2 * MINUTE;
+    Check::equal("then 3", GwenGui::rememberedPins().value(ALICE), 3 * MINUTE);
+    fakeTime += 3 * MINUTE;
+    GwenGui::forgetExpiredPins();
+    Check::that("and none once it is wiped", GwenGui::rememberedPins().isEmpty());
+
+    answers << answer(QStringLiteral("12345"));
+    askPin(ALICE);
+    bankSays(ALICE, GWEN_Gui_PasswordStatus_Ok);
+    GwenGui::finishCommand();
+    GwenGui::forgetPins();
+    Check::that("Forgetting the PINs leaves none to report", GwenGui::rememberedPins().isEmpty());
+    Check::that("and the next command asks again", !remembered(ALICE));
+}
+
 void tanTests()
 {
     FakeBankingThread::reset();
@@ -261,6 +293,25 @@ void tanTests()
     Check::equal("but passed on as the frames to show", requests.value(0).flickerCode, QString::fromLatin1(FLICKER_FRAMES));
     Check::equal("and its TAN handed to AqBanking", entry.text, QStringLiteral("1"));
     GWEN_DB_Group_free(params);
+
+    // Whether the bank takes digits only for the TAN, as its parameters say per method.
+    params = GWEN_DB_Group_new("params");
+    GWEN_DB_SetIntValue(params, GWEN_DB_FLAGS_OVERWRITE_VARS, "tanMethodId", AB_BANKING_TANMETHOD_TEXT);
+    GWEN_DB_SetCharValue(params, GWEN_DB_FLAGS_OVERWRITE_VARS, "tanMethod/formatId", "2");
+    FakeBankingThread::reset();
+    answers << answer(QStringLiteral("1"));
+    askTan("Bitte TAN eingeben", GWEN_Gui_PasswordMethod_Text, params);
+    Check::that("A numeric TAN method gets the digit keyboard", requests.value(0).digitsOnly);
+    GWEN_DB_SetCharValue(params, GWEN_DB_FLAGS_OVERWRITE_VARS, "tanMethod/formatId", "1");
+    FakeBankingThread::reset();
+    answers << answer(QStringLiteral("a1"));
+    askTan("Bitte TAN eingeben", GWEN_Gui_PasswordMethod_Text, params);
+    Check::that("an alphanumeric one the whole keyboard", !requests.value(0).digitsOnly);
+    GWEN_DB_Group_free(params);
+    FakeBankingThread::reset();
+    answers << answer(QStringLiteral("a1"));
+    askTan("Bitte TAN eingeben");
+    Check::that("as does one the bank says nothing about", !requests.value(0).digitsOnly);
 }
 
 void flickerCodeTests()
@@ -385,6 +436,7 @@ void runGwenGuiTests()
     GwenGui::setClock(fakeClock);
 
     pinTests();
+    rememberedPinTests();
     tanTests();
     flickerCodeTests();
     messageTests();

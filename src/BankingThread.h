@@ -107,6 +107,8 @@ public:
     /* Lets the user choose another of the TAN methods the bank allows, and the TAN medium's name with it. */
     void changeTanMethod(uint bankAccessId);
     void resetData();
+    /* Wipes all remembered PINs at once; while a command runs, as soon as it ends. */
+    void forgetPins();
     void respond(int interactionId, bool accepted, const QString &text, int choice);
     void cancelInteraction();
     void stop();
@@ -116,12 +118,14 @@ public:
     /* Banking thread, called from GwenGui */
     /*
      * presetText: what a text field starts with (TextInteraction);
-     * flickerCode: the frames of a chipTAN flicker code (TanInteraction), see FlickerCode
+     * flickerCode: the frames of a chipTAN flicker code (TanInteraction), see FlickerCode;
+     * digitsOnly: the bank takes digits only for this TAN (TanInteraction)
      */
     Response requestInteraction(InteractionType type, const QString &title, const QString &text,
                                 const QStringList &choices = QStringList(),
                                 const QByteArray &image = QByteArray(), const QString &mimeType = QString(),
-                                const QString &presetText = QString(), const QString &flickerCode = QString());
+                                const QString &presetText = QString(), const QString &flickerCode = QString(),
+                                bool digitsOnly = false);
     void reportProgress(const QString &text);
     void reportError(const QString &text);
     bool isCancelled() const;
@@ -140,7 +144,13 @@ signals:
     /* A challenge image (photoTAN, QR-TAN) arrives decoded, as decoding is this thread's job too. */
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
                               const QStringList &choices, const QImage &image, const QString &presetText,
-                              const QString &flickerCode);
+                              const QString &flickerCode, bool digitsOnly);
+    /*
+     * The bank accesses whose PIN is remembered, by ID (as text), with the time
+     * it is wiped at (milliseconds since the epoch); after every command, and
+     * when one is wiped.
+     */
+    void pinsChanged(const QVariantMap &deadlines);
     void interactionFinished(int interactionId);
 
 protected:
@@ -180,6 +190,8 @@ private:
     bool chooseTanMethod(uint32_t userUid, bool change = false);
     bool chooseTanMedium(uint32_t userUid, const QString &current = QString());
     void collectBankMessage(const QString &text);
+    /* Emits pinsChanged() if the set of accesses changed, or always if force is set. */
+    void publishPins(bool force);
     void publishAccounts();
     void loadStoredBalances();
     void storeBalances(const QVariantList &balances);
@@ -195,6 +207,7 @@ private:
     QQueue<Command> commands;
     bool stopRequested;
     bool cancelRequested;
+    bool forgetPinsRequested;
     int pendingInteraction;
     bool interactionAnswered;
     Response interactionResponse;
@@ -208,6 +221,8 @@ private:
     /* The bank's result lines are kept while this is set, in bankMessages. */
     bool collectingBankMessages;
     QStringList bankMessages;
+    /* What pinsChanged() said last. */
+    QVariantMap publishedPins;
     /* The last balance of each account, kept in the encrypted store, by account ID. */
     QHash<uint, QVariantMap> storedBalances;
 };

@@ -24,6 +24,7 @@
 #include <QObject>
 #include <QString>
 #include <QStringList>
+#include <QVariantMap>
 
 #include "AccountModel.h"
 #include "BankingThread.h"
@@ -52,6 +53,8 @@ class Banking : public QObject
     Q_PROPERTY(QString progressText READ progressText NOTIFY progressTextChanged)
     /** What the bank answered to the last transaction fetch: its result codes with their texts. The bank's text: plain text only. */
     Q_PROPERTY(QStringList bankMessages READ bankMessages NOTIFY bankMessagesChanged)
+    /** Bank access ID (as text) to the time its remembered PIN is wiped, in milliseconds since the epoch. */
+    Q_PROPERTY(QVariantMap pinDeadlines READ pinDeadlines NOTIFY pinDeadlinesChanged)
     Q_PROPERTY(AccountModel *accounts READ accounts CONSTANT)
     Q_PROPERTY(TransactionModel *transactions READ transactions CONSTANT)
     Q_PROPERTY(HoldingModel *holdings READ holdings CONSTANT)
@@ -96,6 +99,7 @@ public:
     Operation operation() const;
     QString progressText() const;
     QStringList bankMessages() const;
+    QVariantMap pinDeadlines() const;
     AccountModel *accounts();
     TransactionModel *transactions();
     HoldingModel *holdings();
@@ -116,6 +120,8 @@ public:
     Q_INVOKABLE void updateBankAccess(int bankAccessId);
     /** Another of the TAN methods the bank allows, without contacting it; and the TAN medium's name. */
     Q_INVOKABLE void changeTanMethod(int bankAccessId);
+    /** Wipes all remembered PINs; the next action with a bank asks for its PIN again. */
+    Q_INVOKABLE void forgetPins();
     Q_INVOKABLE void respond(int interactionId, bool accepted, const QString &text, int choice);
     /** Aborts whatever the bank is waiting for: the running operation fails as cancelled. */
     Q_INVOKABLE void cancel();
@@ -129,9 +135,10 @@ signals:
     void busyChanged();
     void progressTextChanged();
     void bankMessagesChanged();
+    void pinDeadlinesChanged();
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
                               const QStringList &choices, const QString &imageUrl, const QString &presetText,
-                              const QString &flickerCode);
+                              const QString &flickerCode, bool digitsOnly);
     void interactionFinished(int interactionId);
     void operationFinished(int operation, bool success, const QString &message);
 
@@ -146,7 +153,8 @@ private slots:
     void handleBankMessages(const QStringList &messages);
     void handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
                                     const QStringList &choices, const QImage &image, const QString &presetText,
-                                    const QString &flickerCode);
+                                    const QString &flickerCode, bool digitsOnly);
+    void handlePinsChanged(const QVariantMap &deadlines);
     void handleInteractionFinished(int interactionId);
 
 private:
@@ -164,6 +172,7 @@ private:
     Operation currentOperation;
     QString currentProgressText;
     QStringList currentBankMessages;
+    QVariantMap currentPinDeadlines;
 };
 
 #endif // BANKING_H

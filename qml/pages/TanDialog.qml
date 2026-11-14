@@ -37,6 +37,8 @@ Dialog {
     property string imageUrl
     property string presetText
     property string flickerCode
+    // the bank takes digits only for this TAN method
+    property bool digitsOnly: false
     property bool answered: false
 
     readonly property bool showsCode: imageUrl.length > 0 || flickerCode.length > 0
@@ -47,7 +49,7 @@ Dialog {
                          && Qt.application.active
     }
 
-    canAccept: tanField.text.trim().length > 0
+    canAccept: tanField.text.trim().length > 0 && !tanField.errorHighlight
 
     onAccepted: {
         answered = true
@@ -205,7 +207,12 @@ Dialog {
                 focus: !tanDialog.showsCode
                 label: qsTr("TAN")
                 placeholderText: label
-                inputMethodHints: Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase | Qt.ImhSensitiveData
+                inputMethodHints: (tanDialog.digitsOnly ? Qt.ImhDigitsOnly : (Qt.ImhNoPredictiveText | Qt.ImhNoAutoUppercase))
+                                  | Qt.ImhSensitiveData
+                // The digit keyboard also has "+/-" and ".", which it commits past
+                // any validator. They are marked instead, and the TAN cannot be sent
+                // with them; changing the text under the keyboard crashed the app.
+                errorHighlight: tanDialog.digitsOnly && /[^0-9]/.test(text)
                 EnterKey.iconSource: "image://theme/icon-m-enter-accept"
                 EnterKey.enabled: tanDialog.canAccept
                 EnterKey.onClicked: tanDialog.accept()

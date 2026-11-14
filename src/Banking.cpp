@@ -49,6 +49,7 @@ Banking::Banking(const QString &dataDirectory, TanImageProvider *tanImageProvide
     connect(&thread, &BankingThread::bankMessagesReported, this, &Banking::handleBankMessages);
     connect(&thread, &BankingThread::interactionRequested, this, &Banking::handleInteractionRequested);
     connect(&thread, &BankingThread::interactionFinished, this, &Banking::handleInteractionFinished);
+    connect(&thread, &BankingThread::pinsChanged, this, &Banking::handlePinsChanged);
 
     thread.start();
     startUp();
@@ -88,6 +89,22 @@ QString Banking::progressText() const
 QStringList Banking::bankMessages() const
 {
     return currentBankMessages;
+}
+
+QVariantMap Banking::pinDeadlines() const
+{
+    return currentPinDeadlines;
+}
+
+void Banking::forgetPins()
+{
+    thread.forgetPins();
+}
+
+void Banking::handlePinsChanged(const QVariantMap &deadlines)
+{
+    currentPinDeadlines = deadlines;
+    emit pinDeadlinesChanged();
 }
 
 TransactionModel *Banking::transactions()
@@ -274,10 +291,10 @@ void Banking::handleBankMessages(const QStringList &messages)
 
 void Banking::handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
                                          const QStringList &choices, const QImage &image, const QString &presetText,
-                                         const QString &flickerCode)
+                                         const QString &flickerCode, bool digitsOnly)
 {
     const QString imageUrl = image.isNull() ? QString() : tanImageProvider->setImage(image);
-    emit interactionRequested(interactionId, type, title, text, choices, imageUrl, presetText, flickerCode);
+    emit interactionRequested(interactionId, type, title, text, choices, imageUrl, presetText, flickerCode, digitsOnly);
 }
 
 void Banking::handleInteractionFinished(int interactionId)

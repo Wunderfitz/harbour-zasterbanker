@@ -55,3 +55,10 @@ function iban(text) {
 function date(value) {
     return Qt.formatDate(value, Qt.DefaultLocaleShortDate)
 }
+
+// Minutes and seconds left, as "4:07".
+function countdown(milliseconds) {
+    var seconds = Math.max(0, Math.ceil(milliseconds / 1000))
+    var rest = seconds % 60
+    return Math.floor(seconds / 60) + ":" + (rest < 10 ? "0" : "") + rest
+}

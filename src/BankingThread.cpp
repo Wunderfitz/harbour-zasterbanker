@@ -87,6 +87,7 @@ BankingThread::BankingThread(const QString &dataDirectory, QObject *parent)
     , dataDirectory(dataDirectory)
     , stopRequested(false)
     , cancelRequested(false)
+    , forgetPinsRequested(false)
     , pendingInteraction(0)
     , interactionAnswered(false)
     , nextInteractionId(0)
@@ -188,6 +189,13 @@ void BankingThread::resetData()
     enqueue(command);
 }
 
+void BankingThread::forgetPins()
+{
+    QMutexLocker locker(&mutex);
+    forgetPinsRequested = true;
+    condition.wakeAll();
+}
+
 void BankingThread::enqueue(const Command &command)
 {
     QMutexLocker locker(&mutex);
@@ -232,7 +240,7 @@ bool BankingThread::isCancelled() const
 BankingThread::Response BankingThread::requestInteraction(InteractionType type, const QString &title, const QString &text,
                                                           const QStringList &choices, const QByteArray &image,
                                                           const QString &mimeType, const QString &presetText,
-                                                          const QString &flickerCode)
+                                                          const QString &flickerCode, bool digitsOnly)
 {
     Response response;
     response.accepted = false;
@@ -261,7 +269,8 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
         interactionAnswered = false;
     }
 
-    emit interactionRequested(interactionId, type, title, text, choices, decodedImage, presetText, flickerCode);
+    emit interactionRequested(interactionId, type, title, text, choices, decodedImage, presetText, flickerCode,
+                              digitsOnly);
 
     {
         QMutexLocker locker(&mutex);
@@ -327,9 +336,11 @@ void BankingThread::run()
 
     forever {
         Command command;
+        bool haveCommand = false;
+        bool forget = false;
         {
             QMutexLocker locker(&mutex);
-            while (commands.isEmpty() && !stopRequested) {
+            if (commands.isEmpty() && !stopRequested && !forgetPinsRequested) {
                 // Remembered PINs are wiped when their time is up, not merely
                 // left unused. The wait does not count time the device spends
                 // suspended, so it wakes at least every 15 seconds while there
@@ -345,8 +356,21 @@ void BankingThread::run()
             if (stopRequested) {
                 break;
             }
-            command = commands.dequeue();
-            cancelRequested = false;
+            forget = forgetPinsRequested;
+            forgetPinsRequested = false;
+            if (!commands.isEmpty()) {
+                command = commands.dequeue();
+                cancelRequested = false;
+                haveCommand = true;
+            }
+        }
+        if (forget) {
+            GwenGui::forgetPins();
+        }
+        if (!haveCommand) {
+            GwenGui::forgetExpiredPins();
+            publishPins(forget);
+            continue;
         }
         lastError.clear();
 
@@ -384,6 +408,8 @@ void BankingThread::run()
         } else {
             GwenGui::finishCommand();
         }
+        // the times start again when the command ends
+        publishPins(true);
     }
 
     shutDownAqBanking();
@@ -954,6 +980,29 @@ void BankingThread::executeResetData()
     const bool removed = !QFile::exists(dataFilePath()) || QFile::remove(dataFilePath());
     emit accountsChanged(QVariantList());
     emit commandFinished(ResetData, removed, removed ? QString() : tr("The stored data could not be removed."));
+}
+
+void BankingThread::publishPins(bool force)
+{
+    const QMap<QByteArray, qint64> remembered = GwenGui::rememberedPins();
+    QVariantMap deadlines;
+    if (!remembered.isEmpty() && banking) {
+        // AqBanking's token name for a PIN/TAN user's PIN (AH_User_MkPasswdName())
+        ZB_USER_INFO users[MAX_USERS];
+        const int userCount = ZB_ListUsers(banking, users, MAX_USERS);
+        const qint64 now = QDateTime::currentMSecsSinceEpoch();
+        for (int i = 0; i < userCount; i++) {
+            const QByteArray token = QByteArray("PIN_") + QByteArray(users[i].bankCode) + '_' + QByteArray(users[i].userId);
+            const auto pin = remembered.constFind(token);
+            if (pin != remembered.constEnd()) {
+                deadlines.insert(QString::number(users[i].uid), static_cast<double>(now + pin.value()));
+            }
+        }
+    }
+    if (force || deadlines.keys() != publishedPins.keys()) {
+        publishedPins = deadlines;
+        emit pinsChanged(deadlines);
+    }
 }
 
 void BankingThread::publishAccounts()

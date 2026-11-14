@@ -34,6 +34,22 @@ Page {
     property var bankMessages: []
 
     readonly property bool ready: banking.state === Banking.Ready
+    readonly property bool pinsRemembered: Object.keys(banking.pinDeadlines).length > 0
+    // for the PINs' countdown
+    property real now: Date.now()
+
+    function pinTimeLeft(bankAccessId) {
+        var deadline = banking.pinDeadlines[String(bankAccessId)]
+        return deadline === undefined ? 0 : deadline - now
+    }
+
+    Timer {
+        interval: 1000
+        repeat: true
+        triggeredOnStart: true
+        running: overviewPage.pinsRemembered && Qt.application.active && overviewPage.status === PageStatus.Active
+        onTriggered: overviewPage.now = Date.now()
+    }
     readonly property bool refreshing: banking.busy && (banking.operation === Banking.FetchingBalances
                                                         || banking.operation === Banking.UpdatingBankAccess)
 
@@ -90,6 +106,12 @@ Page {
                 onClicked: pageStack.push(Qt.resolvedUrl("BankMessagesPage.qml"), {
                     messages: overviewPage.bankMessages
                 })
+            }
+            // Whoever picks up the phone next gets no action without the PIN.
+            MenuItem {
+                text: qsTr("Forget PINs now")
+                visible: overviewPage.ready && overviewPage.pinsRemembered
+                onClicked: banking.forgetPins()
             }
             MenuItem {
                 text: qsTr("Add bank access")
@@ -152,8 +174,29 @@ Page {
                     }
                 }
 
+                // How long the access's PIN is still remembered, if it is.
+                Label {
+                    id: pinLabel
+
+                    readonly property real timeLeft: overviewPage.pinTimeLeft(bankAccessId)
+
+                    x: Theme.horizontalPageMargin
+                    anchors.verticalCenter: bankHeaderLabel.verticalCenter
+                    visible: timeLeft > 0
+                    font.pixelSize: Theme.fontSizeExtraSmall
+                    color: Theme.secondaryHighlightColor
+                    text: qsTr("PIN remembered %1").arg(Format.countdown(timeLeft))
+                }
+
+                // its own margins, as without the countdown
                 SectionHeader {
                     id: bankHeaderLabel
+                    anchors {
+                        right: parent.right
+                        rightMargin: Theme.horizontalPageMargin
+                    }
+                    width: parent.width - 2 * Theme.horizontalPageMargin
+                           - (pinLabel.visible ? pinLabel.width + Theme.paddingMedium : 0)
                     text: bankName
                 }
             }

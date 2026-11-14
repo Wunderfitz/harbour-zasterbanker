@@ -408,6 +408,17 @@ code to type into his chipTAN generator where he expected a QR code.
   Known risk, not fixable without a patch: if a bank sent 3955 without a
   challenge text, AqBanking would skip the box and ask the bank again at once,
   in a loop without pause. Banks send a text ("Bitte bestätigen Sie…").
+- **The TAN field has the digit keyboard where the bank says its TANs are
+  numeric** (2026-11-15, asked for by a tester). FinTS itself allows any
+  characters in a TAN, but the bank says per method in its parameters
+  (HITANS, "Erlaubtes Format im Zwei-Schritt-Verfahren": 1 alphanumeric, 2
+  numeric), which AqBanking hands over with every TAN request
+  (`tanMethod/formatId`). Without that, or with 1, the whole keyboard stays.
+  The digit keyboard also has "+/-" and ".", which it commits past any
+  validator; such an entry is marked as an error and cannot be sent. Changing
+  the text in `onTextChanged` instead crashed the app on the emulator (the
+  field and the keyboard went round in a loop), so the field is never changed
+  under the keyboard.
 - **chipTAN USB is not offered**: AqBanking needs a card reader driver as a
   loadable plugin for it (Gwenhywfar is built without loading plugins), and
   Harbour would not let the app reach USB. With the mechanism left to
@@ -635,6 +646,18 @@ the transactions page, which a depot has no use for.
   - It is wiped at once when the bank rejects it, when a bank access is
     removed or all data is reset (all PINs), and when the app ends.
   - The PIN dialog says so.
+  - **The overview shows how long each PIN is still kept** (added 2026-11-15
+    on a tester's request): "PIN remembered 4:07" left of the bank's name,
+    counting down. After every command, and whenever one is wiped,
+    `BankingThread::publishPins()` maps `GwenGui::rememberedPins()` (token and
+    time left, only PINs the bank accepted and no command is using) to bank
+    accesses by AqBanking's token name, `PIN_<bank code>_<login>`, and hands
+    the times they are wiped at to QML (`Banking::pinDeadlines`), which counts
+    down by itself, once a second while the page is in front. Nothing about the
+    PINs themselves leaves `GwenGui`.
+  - **"Forget PINs now"** in the overview's pull-down menu, while a PIN is
+    kept, wipes them all at once (`Banking::forgetPins()`); the banking thread
+    does it between commands, as it owns them.
 - **PIN, TAN and the TAN medium's name reach AqBanking in ISO 8859-1** (found
   2026-11-11: a tester's PIN with umlauts and special characters failed with
   AqBanking's "Unable to encode"). FinTS messages are ISO 8859-1 (python-fints
@@ -808,7 +831,8 @@ checked on every push.
   GUI API with a stand-in banking thread (`FakeBankingThread.cpp`: every rule of
   the PIN memory, with a fake clock through `GwenGui::setClock()`, a PIN with
   umlauts and special characters handed over in ISO 8859-1, one with "€"
-  refused, the filter on the bank's texts, TAN images, flicker codes (the HHD
+  refused, which PINs it reports as kept and for how long, whether a TAN is
+  numeric, the filter on the bank's texts, TAN images, flicker codes (the HHD
   1.4 specification's example), message boxes, AqBanking's request to confirm
   in the bank's app reworded (the bank's message filtered, segment and login
   left out, "not received yet" only for the same request again, a text not as
@@ -1161,6 +1185,13 @@ project unless the owner says so.
   template, untranslated (C locale). Not seen: the dialog itself (the existing
   message dialog with one answer), the German title being recognised on a
   phone, and a real bank's approval.
+- 2026-11-15, engine tests and emulator (5.1, sample accounts and a PIN
+  deadline patched into the QML, real touch input): the countdown next to the
+  bank's name runs and leaves the bank names their margins, "Forget PINs now"
+  appears while a PIN is kept and removes the countdown, and the TAN dialog for
+  a numeric method opens the digit keyboard; "+/-" and "." mark the entry as an
+  error and disable Accept until removed. Not seen: real PINs counting down
+  after a bank's action, and a real bank's numeric method.
 - Not verified yet: data centres or private banks besides Atruvia, the
   Sparkassen and the DKB, the other TAN methods (as far as is known), removing a bank access,
   and the reset after an unreadable store (`DataUnreadable`; the reset after a

@@ -39,6 +39,7 @@ struct Request {
     QByteArray image;
     QString mimeType;
     QString flickerCode;
+    bool digitsOnly;
 };
 
 /** What GwenGui asked, oldest first. */
