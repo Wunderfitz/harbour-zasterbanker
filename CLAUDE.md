@@ -212,6 +212,14 @@ archives, and the app links them in.
     KMyMoney use the same profile, but ask for MT940 by default; the profile is
     unchanged up to AqBanking 6.9.2, the newest release. To be reported and
     proposed upstream once confirmed at comdirect (project owner, 2026-11-14).
+  - `aqbanking-6.9.2-no-old-settings.patch`: `AB_Banking_new()` looked for an
+    old AqBanking configuration to copy over, at `~/.aqbanking/settings6/users`
+    and `~/.aqbanking/settings/users`, and Gwenhywfar's path lookup created the
+    folders on the way (empty). Without Sailjail it would have copied another
+    AqBanking application's configuration, in plain text, to
+    `~/.aqbanking/settings6`; under Sailjail the app may neither read nor
+    create anything there. The call is gone. The tests plant such a
+    configuration in their home folder and check that nothing joins it.
   - `gwenhywfar-5.14.1-require-peer-cert.patch`: Gwenhywfar's HTTPS client
     would carry on with a TLS connection the server presented no certificate
     for. It now requires one.
@@ -585,14 +593,8 @@ the transactions page, which a depot has no use for.
   cryptographically secure generator meant for keys; accepted.
 - Known limit: text typed into QML fields (PIN, TAN) lives in Qt's string
   memory until it is reused; it cannot be wiped from C++.
-- Known gap (found 2026-11-08 by the tests): `AB_Banking_new()` looks for an
-  old AqBanking configuration to copy over, at `~/.aqbanking/settings6/users`
-  and `~/.aqbanking/settings/users`, and Gwenhywfar's path lookup creates the
-  folders on the way (empty). Under Sailjail the app may neither create nor
-  read anything there, so this should come to nothing on the phone; without
-  Sailjail, it would create the two empty folders, and copy over the plain
-  configuration of another AqBanking application if there is one. Not
-  patched (yet).
+- **AqBanking does not look for another application's configuration**
+  (patched 2026-11-14, found 2026-11-08 by the tests; patch below).
 
 ### Bank list
 
@@ -730,8 +732,9 @@ checked on every push.
   the package build does (GnuTLS's flags name libatomic, which the target has
   no runtime library of), and it replaces `getpwuid()`, as the target has no
   passwd entry for the build user and `AB_Banking_new()` aborts without a home
-  directory. The tests' home folder is an empty one of their own, and they
-  check that AqBanking writes no file there.
+  directory. The tests' home folder is one of their own, holding another
+  application's AqBanking configuration, and they check that AqBanking
+  creates nothing there, neither file nor folder.
 - Not covered: `KeyStore` (needs the Sailfish Secrets daemon), anything that
   talks to a bank, which job
   AqBanking sends for the flag (done once on the emulator on 2026-11-05), and the UI
@@ -997,8 +1000,8 @@ project unless the owner says so.
   TAN methods and medium; the setup dialog for the medium was not seen.
 - **2026-11-14, real banks, testers, test build `0.5.0-0.202611112102`:**
   - **Sparkassen work**: several Sparkasse users reported everything working.
-    Not reported: whether the tester whose setup had shown no account was among
-    them, and which of the new steps (UPD version 0, `HKSPA`) it took.
+    Among them the tester whose setup had shown no account: everything works
+    now. Not known: which of the new steps (UPD version 0, `HKSPA`) it took.
   - **The Postbank credit card's transactions work** (`DKKKU`, or what the UPD
     lists, instead of CAMT).
   - **comdirect: the transactions arrive, but every amount shows "-"**: the

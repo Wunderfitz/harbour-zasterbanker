@@ -61,12 +61,11 @@ QByteArray homeFolder;
 }
 
 /*
- * AB_Banking_new() looks for an old settings folder in the home directory to
- * copy over, and aborts if it cannot find the home directory - which the build
- * engine's target cannot, as it has no passwd entry for the build user. Taking
- * the place of libc's, this gives AqBanking an empty home folder of the tests'
- * own instead, so that nothing of the developer's is read, and the tests can
- * check that nothing is written there.
+ * AB_Banking_new() looks up the home directory even when given a data folder,
+ * and aborts if it cannot find it - which the build engine's target cannot, as
+ * it has no passwd entry for the build user. Taking the place of libc's,
+ * this gives AqBanking a home folder of the tests' own instead, so that nothing
+ * of the developer's is read, and the tests can check what happens there.
  */
 extern "C" struct passwd *getpwuid(uid_t uid)
 {
@@ -92,6 +91,23 @@ int main(int argc, char *argv[])
     QTemporaryDir home;
     homeFolder = QFile::encodeName(home.path());
     qputenv("HOME", homeFolder);
+    // Another AqBanking application's configuration, in plain text, where
+    // AB_Banking_new() looked for one to copy over before the no-old-settings
+    // patch. It must stay unread and untouched, and nothing may join it.
+    const QString oldSettings = home.path() + QStringLiteral("/.aqbanking/settings/users");
+    QDir().mkpath(oldSettings);
+    {
+        QFile oldUser(oldSettings + QStringLiteral("/old-user.conf"));
+        oldUser.open(QIODevice::WriteOnly);
+        oldUser.write("userId=\"1234567890\"\n");
+    }
+    QStringList homeBefore;
+    QDirIterator before(home.path(), QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                        QDirIterator::Subdirectories);
+    while (before.hasNext()) {
+        homeBefore.append(QDir(home.path()).relativeFilePath(before.next()));
+    }
+    homeBefore.sort();
 
     // As main.cpp and BankingThread::run() start them.
     gcry_check_version(nullptr);
@@ -110,15 +126,17 @@ int main(int argc, char *argv[])
     runInstituteSearchTests(database);
 
     GWEN_Fini();
-    // AB_Banking_new() creates the empty folders ~/.aqbanking/settings and
-    // ~/.aqbanking/settings6 while it looks for an old configuration to copy
-    // over (under Sailjail, the app may not create them). Files, it must not.
-    QStringList written;
-    QDirIterator files(home.path(), QDir::Files | QDir::Hidden | QDir::System, QDirIterator::Subdirectories);
-    while (files.hasNext()) {
-        written.append(QDir(home.path()).relativeFilePath(files.next()));
+    // Nothing created in the home folder, neither file nor folder, and the old
+    // configuration not copied (it would land in ~/.aqbanking/settings6).
+    QStringList homeAfter;
+    QDirIterator after(home.path(), QDir::AllEntries | QDir::Hidden | QDir::System | QDir::NoDotAndDotDot,
+                       QDirIterator::Subdirectories);
+    while (after.hasNext()) {
+        homeAfter.append(QDir(home.path()).relativeFilePath(after.next()));
     }
-    Check::that("no file was written to the home folder", written.isEmpty(), written.join(QLatin1Char(',')));
+    homeAfter.sort();
+    Check::equal("nothing was created in the home folder", homeAfter.join(QLatin1Char(',')),
+                 homeBefore.join(QLatin1Char(',')));
     std::printf("\n%d failure(s)\n", Check::failures);
     return Check::failures;
 }

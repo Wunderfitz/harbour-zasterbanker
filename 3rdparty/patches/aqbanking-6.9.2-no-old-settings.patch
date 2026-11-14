@@ -1,0 +1,21 @@
+--- aqbanking-6.9.2.orig/src/libs/aqbanking/banking.c	2026-11-14 21:43:52.447020233 +0100
++++ aqbanking-6.9.2/src/libs/aqbanking/banking.c	2026-11-14 21:43:52.464596321 +0100
+@@ -127,14 +127,10 @@
+ 
+   GWEN_Buffer_free(nbuf);
+ 
+-  {
+-    int rv;
+-
+-    rv=AB_Banking_CopyOldSettingsFolderIfNeeded(ab);
+-    if (rv<0) {
+-      DBG_ERROR(AQBANKING_LOGDOMAIN, "Could not copy old settings folder (%d), ignoring", rv);
+-    }
+-  }
++  /* Zaster Banker: no looking for an old settings folder in ~/.aqbanking to
++   * copy over. The app keeps its configuration in its own encrypted store;
++   * the copy would be another application's, in plain text, and the lookup
++   * creates the folders on the way. */
+ 
+   AB_Banking__GetConfigManager(ab, dname);
+ 
