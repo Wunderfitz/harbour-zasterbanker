@@ -19,10 +19,13 @@
 #
 # Builds and runs the tests that need AqBanking, Gwenhywfar and Qt as the app
 # has them (tests/engine/), inside the build engine, from a build directory of
-# the i486 target, whose binaries run natively:
+# a 4.6 target. i486 binaries run natively, aarch64 and armv7hl ones under the
+# build engine's emulation:
 #
 #   cd ~/git/build-harbour-zasterbanker-4.6.0.13-i486
 #   ~/SailfishOS/bin/sfdk -c target=SailfishOS-4.6.0.13-i486 build-shell ../harbour-zasterbanker/tests/run-engine-tests.sh
+#
+# Likewise for aarch64 and armv7hl, each from its own build directory.
 #
 # The third-party libraries have to be built for the target first
 # (3rdparty/build-deps.sh). Everything the tests build and install goes into

@@ -718,14 +718,18 @@ checked on every push.
   the accounts it counts per user, the models (a bank access without accounts
   included), and the bank search on the made-up list.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
-  `tests/run-engine-tests.sh` builds it in the build engine, from the i486
-  build directory, whose binaries run natively; it installs AqBanking's data
-  files with `make install` and makes the bank list from
-  `tests/data/institutes.csv`:
+  `tests/run-engine-tests.sh` builds it in the build engine, from a 4.6 build
+  directory; it installs AqBanking's data files with `make install` and makes
+  the bank list from `tests/data/institutes.csv`. **Every architecture the app
+  ships for is tested** (decided 2026-11-14): i486 binaries run natively,
+  aarch64 and armv7hl ones under the build engine's emulation, about a minute
+  each. Those two matter on their own, as `char` is unsigned there, unlike on
+  i486 (the MT535 parser's umlaut bug depended on that), and armv7hl is 32-bit.
 
   ```sh
   cd ~/git/build-harbour-zasterbanker-4.6.0.13-i486
   ~/SailfishOS/bin/sfdk -c target=SailfishOS-4.6.0.13-i486 build-shell ../harbour-zasterbanker/tests/run-engine-tests.sh
+  # likewise aarch64 and armv7hl, each from its own build directory
   ```
 
   Two things the build engine needs: the program links with `--as-needed`, as
@@ -751,7 +755,7 @@ checked on every push.
   nightlies are effectively published builds, with the real registration number
   and the bank list inside (2026-11-08): anyone signed in to GitHub can download
   a public repository's artifacts.
-- **Jobs**: version → libraries (per architecture) → tests → build of the four
+- **Jobs**: version → libraries (per architecture) → tests (per architecture) → build of the four
   packages (4.6 aarch64 and armv7hl, 5.1 aarch64 and i486), each followed by
   Harbour's validation (`mb2 check`, as `sfdk check`) → release. The RPMs are
   renamed after their target (`harbour-zasterbanker-0.5.0-1.sfos5.1.aarch64.rpm`),

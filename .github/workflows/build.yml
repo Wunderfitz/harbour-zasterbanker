@@ -196,37 +196,46 @@ jobs:
           key: ${{ steps.cache.outputs.cache-primary-key }}
 
   # Every test suite, as CLAUDE.md runs them locally: the tools' tests with the
-  # runner's Python, then the ones that need the libraries and Qt 5.6 in the
-  # build engine, against the i486 target, whose binaries run natively.
+  # runner's Python (once), then the ones that need the libraries and Qt 5.6 in
+  # the build engine, for every architecture the app ships for. Only i486
+  # binaries run natively; aarch64 and armv7hl ones run under the build
+  # engine's emulation, which matters as char is unsigned there, unlike on
+  # i486, and armv7hl is 32-bit (a minute or so each).
   test:
-    name: Tests
+    name: Tests ${{ matrix.arch }}
     if: github.event_name == 'push'
     needs: deps
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        arch: [aarch64, armv7hl, i486]
 
     steps:
       - uses: actions/checkout@v7
 
       - name: Run the tools' tests
+        if: matrix.arch == 'i486'
         run: python3 -m unittest discover -s tests/host -v
 
       - name: Restore the libraries
         uses: actions/cache/restore@v6
         with:
-          path: 3rdparty/install/i486
-          key: deps-i486-${{ env.SDK_IMAGE_4_6 }}-${{ hashFiles('3rdparty/build-deps.sh', '3rdparty/patches/**', 'tools/po2mo.py') }}
+          path: 3rdparty/install/${{ matrix.arch }}
+          key: deps-${{ matrix.arch }}-${{ env.SDK_IMAGE_4_6 }}-${{ hashFiles('3rdparty/build-deps.sh', '3rdparty/patches/**', 'tools/po2mo.py') }}
           fail-on-cache-miss: true
 
       - name: Run the tests in the build engine
+        env:
+          ARCH: ${{ matrix.arch }}
         run: |
           set -euo pipefail
-          docker run --rm -i --privileged -v "$GITHUB_WORKSPACE:/workspace:ro" \
+          docker run --rm -i --privileged -e ARCH -v "$GITHUB_WORKSPACE:/workspace:ro" \
               "$SDK_IMAGE_4_6" bash -s <<'OUTER'
           set -euo pipefail
           mkdir -p zasterbanker
           cp -r /workspace/. zasterbanker/
           cd zasterbanker
-          target=SailfishOS-4.6.0.13-i486
+          target="SailfishOS-4.6.0.13-$ARCH"
           mb2 -t "$target" build-init
           mb2 -t "$target" build-requires reset
           mb2 -t "$target" build-shell bash tests/run-engine-tests.sh
