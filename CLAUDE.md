@@ -210,8 +210,9 @@ archives, and the app links them in.
     every transaction showed "-" (found 2026-11-14), and an entry without
     details had no amount anywhere. It now reads the entry's. GnuCash and
     KMyMoney use the same profile, but ask for MT940 by default; the profile is
-    unchanged up to AqBanking 6.9.2, the newest release. To be reported and
-    proposed upstream once confirmed at comdirect (project owner, 2026-11-14).
+    unchanged up to AqBanking 6.9.2, the newest release. Confirmed at
+    comdirect on 2026-11-15; to be reported and proposed upstream (project
+    owner, 2026-11-14).
   - `aqbanking-6.9.2-no-old-settings.patch`: `AB_Banking_new()` looked for an
     old AqBanking configuration to copy over, at `~/.aqbanking/settings6/users`
     and `~/.aqbanking/settings/users`, and Gwenhywfar's path lookup created the
@@ -586,6 +587,13 @@ the transactions page, which a depot has no use for.
 - Fetched once per depot while the app runs, like transactions. The value does not
   reach the overview or the totals per bank: it would make them jump when a depot
   is first opened.
+- **What the overview shows for a depot is the bank's choice.** AqBanking picks
+  the balance job by the first of `HKSAL`, `DKKKS`, `HKKKS` and `HKWPD` the
+  account's UPD lists (`ajobs/jobgetbalance.c`). With `HKSAL`, as at the project
+  owner's Volksbank, the bank's balance is the depot's value and shows. With
+  `HKWPD` first, AqBanking sends a depot request (version 6 only), which brings
+  securities and no balance: the overview shows "-", and the app drops the
+  securities.
 
 ### Data protection
 
@@ -1157,7 +1165,8 @@ project unless the owner says so.
     CAMT request with IBAN and BIC only is accepted. That the amount is missing
     from comdirect's transaction details follows from AqBanking's CAMT 052.001.08
     profile (patch above, the only way names arrive without an amount); the
-    statement itself was not seen. Fixed by that patch, untested at comdirect.
+    statement itself was not seen. Fixed by that patch, confirmed on
+    2026-11-15 (below).
   - **The PIN with umlauts and special characters works** (ISO 8859-1).
 - 2026-11-14, engine tests and emulator (5.1, sample accounts patched into the
   QML, real touch input): updating a bank access and changing the TAN method
@@ -1198,8 +1207,26 @@ project unless the owner says so.
   a numeric method opens the digit keyboard; "+/-" and "." mark the entry as an
   error and disable Accept until removed. Not seen: real PINs counting down
   after a bank's action, and a real bank's numeric method.
+- **2026-11-15, real banks, testers:**
+  - **ING and DKB: every feature works**, as far as the testers tried them
+    (the first report from ING). Which TAN methods they use was not reported.
+  - **comdirect: the amounts show**, so the CAMT 052.001.08 amount patch works
+    there.
+  - **Consorsbank** (`brokerage-hbci.consorsbank.de`, its own server):
+    ordinary accounts work smoothly. **A depot shows neither its total nor its
+    holdings**; no further details yet, the tester has been asked for them.
+    Leads, none confirmed: Consors answers any job an account does not allow
+    with `9380 - Keine Berechtigung für diese Auftragsart mit diesem Konto`
+    (Hibiscus users got it for HKSAL and HKKAZ on a depot in 2014,
+    python-fints for HKWPD in 2019, issue #51, unresolved). If Consors's UPD
+    for the depot leaves out the account type, AqBanking takes it for a
+    current account (type 1, `AH_Job_ReadAccountDataSeg()`), and the app
+    opens the transactions page instead of `DepotPage`. If it lists HKWPD
+    but not HKSAL, AqBanking's balance job is HKWPD, which brings securities
+    and no balance, so the overview shows "-" (see [Depots](#depots)).
 - Not verified yet: data centres or private banks besides Atruvia, the
-  Sparkassen and the DKB, the other TAN methods (as far as is known), removing a bank access,
+  Sparkassen, the DKB, ING, comdirect, Consorsbank, Deutsche Bank and Postbank,
+  the other TAN methods (as far as is known), a depot outside Atruvia, removing a bank access,
   and the reset after an unreadable store (`DataUnreadable`; the reset after a
   key that could not be read was checked on the emulator).
 
@@ -1210,7 +1237,7 @@ testing phase for brave users, with a testing and development group on Telegram
 (linked in the README), where the RPMs for testing are shared. It will be published in the Jolla Store, on OpenRepos and
 as a GitHub release once it has proven to work with banks across several
 backends; so far Atruvia banks, the DKB, Sparkassen, Deutsche Bank,
-Postbank and comdirect have been tried (2026-11-14).
+Postbank, comdirect, ING and Consorsbank have been tried (2026-11-15).
 
 Iterations are decided one at a time by the project owner. Known so far:
 
