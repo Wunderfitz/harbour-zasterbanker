@@ -24,10 +24,11 @@
 #include <QSettings>
 
 /**
- * The app's own settings, exposed as the "appSettings" context property: so
- * far how the TAN dialog shows a chipTAN flicker code, as the user adjusted it
- * to their TAN generator. Nothing about banking; a plain file in the app's
- * configuration folder, ~/.config/de.ygriega/zasterbanker/settings.conf.
+ * The app's own settings, exposed as the "appSettings" context property: how
+ * the TAN dialog shows a chipTAN flicker code, as the user adjusted it to their
+ * TAN generator, and whether debug logging is on. Nothing about banking; a
+ * plain file in the app's configuration folder,
+ * ~/.config/de.ygriega/zasterbanker/settings.conf.
  */
 class AppSettings : public QObject
 {
@@ -38,6 +39,8 @@ class AppSettings : public QObject
     Q_PROPERTY(int flickerSpeed READ flickerSpeed WRITE setFlickerSpeed NOTIFY flickerSpeedChanged)
     Q_PROPERTY(int minimumFlickerSpeed READ minimumFlickerSpeed CONSTANT)
     Q_PROPERTY(int maximumFlickerSpeed READ maximumFlickerSpeed CONSTANT)
+    /** Whether the debug log records; only the setting, the log itself is never stored. */
+    Q_PROPERTY(bool debugLogging READ debugLogging WRITE setDebugLogging NOTIFY debugLoggingChanged)
 
 public:
     explicit AppSettings(QObject *parent = nullptr);
@@ -48,10 +51,13 @@ public:
     void setFlickerSpeed(int speed);
     int minimumFlickerSpeed() const;
     int maximumFlickerSpeed() const;
+    bool debugLogging() const;
+    void setDebugLogging(bool enabled);
 
 signals:
     void flickerWidthChanged();
     void flickerSpeedChanged();
+    void debugLoggingChanged();
 
 private:
     QSettings settings;

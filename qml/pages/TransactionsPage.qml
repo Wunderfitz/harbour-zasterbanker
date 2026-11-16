@@ -41,9 +41,6 @@ Page {
 
     property bool requested: false
     property string lastError
-    // What the bank answered to this page's last fetch, for when the list stays empty.
-    property var bankMessages: []
-    readonly property string bankMessagesHint: bankMessages.length > 0 ? qsTr("Pull down for the bank's messages.") : ""
 
     readonly property bool fetching: banking.busy && banking.operation === Banking.FetchingTransactions
 
@@ -78,7 +75,6 @@ Page {
         onOperationFinished: {
             if (operation === Banking.FetchingTransactions) {
                 transactionsPage.lastError = success ? "" : message
-                transactionsPage.bankMessages = banking.bankMessages
             }
         }
     }
@@ -99,14 +95,6 @@ Page {
         PullDownMenu {
             busy: banking.busy
 
-            MenuItem {
-                text: qsTr("Messages from the bank")
-                visible: transactionsPage.bankMessages.length > 0
-                onClicked: pageStack.push(Qt.resolvedUrl("BankMessagesPage.qml"), {
-                    accountName: transactionsPage.accountName,
-                    messages: transactionsPage.bankMessages
-                })
-            }
             MenuItem {
                 text: qsTr("Refresh transactions")
                 enabled: !banking.busy
@@ -254,14 +242,12 @@ Page {
             enabled: banking.transactions.loaded && banking.transactions.count === 0 && !transactionsPage.fetching
             text: qsTr("No transactions")
             hintText: qsTr("The bank reports none for the last 90 days.")
-                      + (transactionsPage.bankMessagesHint ? "\n" + transactionsPage.bankMessagesHint : "")
         }
 
         ViewPlaceholder {
             enabled: !banking.transactions.loaded && !transactionsPage.fetching && transactionsPage.lastError.length > 0
             text: qsTr("Transactions unavailable")
             hintText: transactionsPage.lastError
-                      + (transactionsPage.bankMessagesHint ? "\n" + transactionsPage.bankMessagesHint : "")
         }
 
         VerticalScrollDecorator {}

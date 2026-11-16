@@ -22,6 +22,7 @@ SOURCES += \
     main.cpp \
     FakeBankingThread.cpp \
     tst_configstore.cpp \
+    tst_debuglog.cpp \
     tst_gwengui.cpp \
     tst_institutesearch.cpp \
     tst_models.cpp \
@@ -29,11 +30,13 @@ SOURCES += \
     tst_tanmethods.cpp \
     $$ZB_ROOT/src/AccountModel.cpp \
     $$ZB_ROOT/src/AqHbciShim.c \
+    $$ZB_ROOT/src/DebugLog.cpp \
     $$ZB_ROOT/src/EncryptedConfigStore.cpp \
     $$ZB_ROOT/src/FlickerCode.cpp \
     $$ZB_ROOT/src/GwenGui.cpp \
     $$ZB_ROOT/src/HoldingModel.cpp \
     $$ZB_ROOT/src/InstituteSearchWorker.cpp \
+    $$ZB_ROOT/src/LogMasker.cpp \
     $$ZB_ROOT/src/StatementReader.cpp \
     $$ZB_ROOT/src/TransactionModel.cpp
 
@@ -43,10 +46,12 @@ HEADERS += \
     $$ZB_ROOT/src/AccountModel.h \
     $$ZB_ROOT/src/AqHbciShim.h \
     $$ZB_ROOT/src/BankingThread.h \
+    $$ZB_ROOT/src/DebugLog.h \
     $$ZB_ROOT/src/EncryptedConfigStore.h \
     $$ZB_ROOT/src/FlickerCode.h \
     $$ZB_ROOT/src/GwenGui.h \
     $$ZB_ROOT/src/HoldingModel.h \
     $$ZB_ROOT/src/InstituteSearchWorker.h \
+    $$ZB_ROOT/src/LogMasker.h \
     $$ZB_ROOT/src/StatementReader.h \
     $$ZB_ROOT/src/TransactionModel.h

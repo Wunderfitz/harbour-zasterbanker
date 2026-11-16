@@ -49,6 +49,7 @@
 extern "C" GWEN_PLUGIN *dbio_swift_factory(GWEN_PLUGIN_MANAGER *pm, const char *modName, const char *fileName);
 
 void runConfigStoreTests();
+void runDebugLogTests();
 void runGwenGuiTests();
 void runStatementTests(const QString &installedData);
 void runModelTests();
@@ -120,6 +121,7 @@ int main(int argc, char *argv[])
     GWEN_PluginManager_AddPlugin(dbioPlugins, dbio_swift_factory(dbioPlugins, "swift", nullptr));
 
     runConfigStoreTests();
+    runDebugLogTests();
     runGwenGuiTests();
     runStatementTests(installedData);
     runModelTests();

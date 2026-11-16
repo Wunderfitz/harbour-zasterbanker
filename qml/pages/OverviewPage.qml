@@ -30,8 +30,6 @@ Page {
     allowedOrientations: Orientation.All
 
     property string lastError
-    // what the bank said when updating the accounts of an access failed
-    property var bankMessages: []
 
     readonly property bool ready: banking.state === Banking.Ready
     readonly property bool pinsRemembered: Object.keys(banking.pinDeadlines).length > 0
@@ -59,8 +57,6 @@ Page {
             if (operation === Banking.FetchingBalances || operation === Banking.RemovingBankAccess
                     || operation === Banking.UpdatingBankAccess || operation === Banking.ChangingTanMethod) {
                 overviewPage.lastError = success ? "" : message
-                overviewPage.bankMessages = !success && operation === Banking.UpdatingBankAccess
-                        ? banking.bankMessages : []
             }
         }
     }
@@ -90,6 +86,10 @@ Page {
                 onClicked: pageStack.push(Qt.resolvedUrl("AboutPage.qml"))
             }
             MenuItem {
+                text: qsTr("Settings")
+                onClicked: pageStack.push(Qt.resolvedUrl("SettingsPage.qml"))
+            }
+            MenuItem {
                 text: qsTr("Delete all data")
                 visible: banking.state === Banking.DataUnreadable || banking.state === Banking.Failed
                 onClicked: remorse.execute(qsTr("Deleting all data"), function() { banking.resetAllData() })
@@ -99,13 +99,6 @@ Page {
                 visible: banking.state === Banking.Failed
                 enabled: !banking.busy
                 onClicked: banking.retry()
-            }
-            MenuItem {
-                text: qsTr("Messages from the bank")
-                visible: overviewPage.bankMessages.length > 0
-                onClicked: pageStack.push(Qt.resolvedUrl("BankMessagesPage.qml"), {
-                    messages: overviewPage.bankMessages
-                })
             }
             // Whoever picks up the phone next gets no action without the PIN.
             MenuItem {

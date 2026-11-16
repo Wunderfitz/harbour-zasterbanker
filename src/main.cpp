@@ -31,6 +31,7 @@
 #include "AccountModel.h"
 #include "AppSettings.h"
 #include "Banking.h"
+#include "DebugLog.h"
 #include "InstituteSearch.h"
 #include "TanImageProvider.h"
 #include "TransactionModel.h"
@@ -61,6 +62,19 @@ int main(int argc, char *argv[])
                                                  QStringLiteral("Comes from banking.transactions"));
     qmlRegisterUncreatableType<HoldingModel>("de.ygriega.zasterbanker", 1, 0, "HoldingModel",
                                              QStringLiteral("Comes from banking.holdings"));
+    qmlRegisterUncreatableType<DebugLog>("de.ygriega.zasterbanker", 1, 0, "DebugLog",
+                                         QStringLiteral("DebugLog is exposed as the 'debugLog' context property"));
+
+    // Before banking starts, so that the debug log, if on, has everything from
+    // the start; and destroyed after it, so that the banking thread never
+    // writes to it after its end.
+    AppSettings appSettings;
+    DebugLog debugLog;
+    DebugLog::installMessageHandler();
+    debugLog.setEnabled(appSettings.debugLogging());
+    QObject::connect(&appSettings, &AppSettings::debugLoggingChanged, &debugLog, [&appSettings, &debugLog]() {
+        debugLog.setEnabled(appSettings.debugLogging());
+    });
 
     // Constructed before the view, so they are destroyed after it and QML never
     // sees them go. The engine takes over the image provider and deletes it with
@@ -68,13 +82,13 @@ int main(int argc, char *argv[])
     TanImageProvider *tanImageProvider = new TanImageProvider();
     Banking banking(QStandardPaths::writableLocation(QStandardPaths::AppDataLocation), tanImageProvider);
     InstituteSearch instituteSearch(SailfishApp::pathTo(QStringLiteral("db/fints_institutes.db")).toLocalFile());
-    AppSettings appSettings;
 
     QScopedPointer<QQuickView> view(SailfishApp::createView());
     view->engine()->addImageProvider(QStringLiteral("tan"), tanImageProvider);
     view->rootContext()->setContextProperty(QStringLiteral("banking"), &banking);
     view->rootContext()->setContextProperty(QStringLiteral("instituteSearch"), &instituteSearch);
     view->rootContext()->setContextProperty(QStringLiteral("appSettings"), &appSettings);
+    view->rootContext()->setContextProperty(QStringLiteral("debugLog"), &debugLog);
     view->setSource(SailfishApp::pathToMainQml());
     view->show();
 

@@ -35,7 +35,7 @@ their balances, and keeps everything it stores encrypted on the phone.
 %setup -q -n %{name}-%{version}
 
 %build
-%qmake5
+%qmake5 ZB_VERSION=%{version} ZB_RELEASE=%{release}
 %make_build
 
 %install

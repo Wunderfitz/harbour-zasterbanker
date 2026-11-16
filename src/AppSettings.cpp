@@ -24,6 +24,7 @@
 namespace {
 const QString KEY_FLICKER_WIDTH = QStringLiteral("flickerWidth");
 const QString KEY_FLICKER_SPEED = QStringLiteral("flickerSpeed");
+const QString KEY_DEBUG_LOGGING = QStringLiteral("debugLogging");
 // TAN generators read at least 10 frames per second; most manage far more.
 const int DEFAULT_FLICKER_SPEED = 15;
 const int MINIMUM_FLICKER_SPEED = 5;
@@ -74,4 +75,17 @@ int AppSettings::minimumFlickerSpeed() const
 int AppSettings::maximumFlickerSpeed() const
 {
     return MAXIMUM_FLICKER_SPEED;
+}
+
+bool AppSettings::debugLogging() const
+{
+    return settings.value(KEY_DEBUG_LOGGING, false).toBool();
+}
+
+void AppSettings::setDebugLogging(bool enabled)
+{
+    if (enabled != debugLogging()) {
+        settings.setValue(KEY_DEBUG_LOGGING, enabled);
+        emit debugLoggingChanged();
+    }
 }

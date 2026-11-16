@@ -49,6 +49,9 @@ new package name, not an update of the old one. There is nothing to migrate.
 - **Remove a bank access**, from the context menu of its name, after a countdown that a
   tap undoes; **"Delete all data"** in the pull-down menu removes everything,
   including the key.
+- **Debug log**, for problem reports: switched on in the settings (pull-down menu), it
+  records every message exchanged with the bank and what the app does, with personal
+  data masked, and can be copied to the clipboard. In memory only.
 
 English and German.
 
@@ -142,6 +145,11 @@ of its own, no analytics and no crash reporting.
 - **Nothing of the conversation with your bank reaches the disk or the system log.**
   AqBanking's message and job logs are compiled out, and release builds log nothing of
   AqBanking or Gwenhywfar at all.
+- **The debug log is off unless you switch it on**, and then lives in the app's memory
+  only: it is gone when the app ends or you switch it off. Names, account numbers,
+  IBANs, balances, transactions and your login are replaced by one `*` per character,
+  PIN and TAN by `[PIN]` and `[TAN]`. Only you can copy it out, to the clipboard, where
+  other apps can read it.
 - **The bank's texts are not trusted**: what the bank or the sender of a transfer
   writes is shown as plain text or filtered formatting, so it cannot make the app load
   anything from elsewhere.
@@ -150,9 +158,11 @@ of its own, no analytics and no crash reporting.
 
 Open an [issue](https://github.com/Wunderfitz/harbour-zasterbanker/issues) with the
 phone, its Sailfish OS version, your bank (or at least its kind and data centre), the
-TAN method and the error the app showed. `journalctl -f` as root while reproducing
-shows the app's own warnings; release builds keep AqBanking's own messages to
-themselves on purpose. Questions and first impressions are just as welcome in the
+TAN method and the error the app showed. For anything to do with a bank, the **debug
+log** helps most: switch on "Debug logging" in the settings, do what went wrong again,
+then "Show debug log" and "Copy debug log", and attach what you copied. It holds every
+message exchanged with the bank, with personal data masked - still read it through
+before posting it. Questions and first impressions are just as welcome in the
 [testing and development group on Telegram](https://t.me/+K3rZ4wtYd7NjMWMy).
 
 **Never post your PIN, a TAN, your login, account numbers, IBANs, balances or
@@ -208,7 +218,9 @@ The order matters, and most of it is dictated by Gwenhywfar and AqBanking:
    read the key, or create the collection and the key on the first start. The key goes
    to the banking thread with the `Initialize` command and is wiped from the UI side.
 3. **Gwenhywfar (`BankingThread::run()`).** `GWEN_Init()` first. The loggers of
-   Gwenhywfar, AqBanking and aqhbci are set to error level. The app's own GUI layer,
+   Gwenhywfar, AqBanking and aqhbci are set to error level (notice level while the
+   debug log is on, which takes them in, masked). AqBanking is given the hook through
+   which every FinTS message reaches the debug log. The app's own GUI layer,
    `GwenGui`, is created and installed with `GWEN_Gui_SetGui()` - this is how AqBanking
    will ask for PINs and TANs later. Then **the statement parser is registered by
    hand**: AqBanking's `swift` importer (MT940, MT942, MT535) asks Gwenhywfar for a
@@ -318,8 +330,8 @@ Setting up is one command on the banking thread, so the PIN is entered once:
 4. **The accounts**: the account list, which AqBanking adds to its store. The app asks
    for the whole list, whatever version of it AqBanking has, and if it holds no
    account, for the accounts' SEPA details, from which AqBanking adds them as well. A
-   bank access that still has no account is not set up; the bank's messages can be
-   read then.
+   bank access that still has no account is not set up; the debug log shows what the
+   bank said.
 5. **The balances** of the new bank access's accounts only, so no other bank is
    contacted and no other PIN asked for. Balances that do not come are no reason to
    undo the setup.

@@ -181,7 +181,12 @@ archives, and the app links them in.
 - **Patches** in `3rdparty/patches/`, applied by the script:
   - `aqbanking-6.9.2-no-disk-logs.patch`: AqBanking logs every FinTS message
     (account data, balances, transactions) and every job to plain files in its
-    data folder. Both are compiled out. Nothing of it reaches the disk.
+    data folder. Both are compiled out. Nothing of it reaches the disk. Instead,
+    `AH_Msg_LogMessage()` hands each message, complete as it goes over the wire,
+    to a hook the app may set (`AH_Msg_LogHook`, set through
+    `ZB_SetMessageLogHook()`), for the debug log (added 2026-11-16, see
+    [Debug log](#debug-log)). GnuCash and KMyMoney have no other way either:
+    they read AqBanking's files.
   - `aqbanking-6.9.2-camt-account.patch`: the CAMT job (`HKCAZ`) always named
     the account by its national account number, sub-account and bank code as
     well as IBAN and BIC, unlike every other job with an international account
@@ -298,9 +303,9 @@ last fails, the half-made user is deleted again: nothing is left behind.
   lists Sparkassen as tested), from whose answer AqBanking adds accounts too,
   though without the UPD's list of jobs, so their balances may only come once
   a later dialog brings the UPD; and returns the number of accounts. (c) With
-  none, setup fails with "The bank listed no accounts for this access",
-  deletes the user, and offers the bank's messages of the whole setup on its
-  page, as the transactions page does. Why that Sparkasse sent none is not
+  none, setup fails with "The bank listed no accounts for this access" and
+  deletes the user; the [debug log](#debug-log) has what the bank said. Why
+  that Sparkasse sent none is not
   known; guesses were the UPD version, a confirmation the bank wanted first
   (PSD2), or the login name rather than the Legitimations-ID.
 
@@ -433,9 +438,8 @@ code to type into his chipTAN generator where he expected a QR code.
   shows the bank's name, a hint instead of an account, and no total, and stays
   off the cover. Its name's menu has no "Refresh balances", but "Update
   accounts and bank data" (see
-  [Updating a bank access](#updating-a-bank-access)) as every access does. If
-  that fails, the pull-down menu has the bank's messages. This also reaches accesses set up before setup failed
-  on no accounts.
+  [Updating a bank access](#updating-a-bank-access)) as every access does. This
+  also reaches accesses set up before setup failed on no accounts.
 
 - **Sections are bank accesses**, keyed by `bankAccessId` rather than the bank
   name: two accesses at the same bank stay apart. There is **no section delegate**:
@@ -543,18 +547,11 @@ code to type into his chipTAN generator where he expected a QR code.
 - When a job fails without an error message, the error says which way: never
   sent ("the bank does not offer...") or answer not readable. AqBanking itself
   only tells its log, which is off.
-- **The bank's messages can be read on the page** (added 2026-11-09 for the
-  comdirect report, as a diagnosis first). During a fetch, `BankingThread`
-  keeps every result line AqBanking passes to the GUI as `HBCI: <code> -
-  <text> (S|M)`, its own untranslated format, whatever the level: these are the
-  only trace of a bank's warnings (3xxx), which fail neither the job nor the
-  call. They go to the page before the result (`bankMessagesReported`,
-  `Banking::bankMessages`). If there are any, the pull-down menu has "Messages
-  from the bank" and the placeholders say so; `BankMessagesPage` lists them as
-  plain text and can copy them, to paste into a problem report. Dialog opening
-  and closing bring their own lines (0020, 0100, 3920...), so the list is longer
-  than the one that matters; whether to filter it is open. Only for
-  transactions so far.
+- **The bank's messages are in the debug log** (see [Debug log](#debug-log)).
+  From 2026-11-09 to 2026-11-16 the page had "Messages from the bank" (the
+  result lines AqBanking passes to the GUI, `HBCI: <code> - <text> (S|M)`), as
+  did the setup page and the overview after a failed update; the debug log
+  replaced all three (project owner, 2026-11-16).
 
 ### Depots
 
@@ -699,8 +696,8 @@ the transactions page, which a depot has no use for.
   for current.
 - **The app's own settings are a plain file**,
   `~/.config/de.ygriega/zasterbanker/settings.conf` (`AppSettings`, as in
-  Fernschreiber): so far only the flicker code's size and speed, nothing about
-  banking.
+  Fernschreiber): the flicker code's size and speed and whether debug logging
+  is on, nothing about banking.
 - **Transactions and holdings are kept in memory only**; they are fetched on
   request. AqBanking dumps raw statements to `/tmp` if `AQHBCI_LOGBOOKED` or
   `AQHBCI_LOGNOTED` is set, so `main.cpp` unsets both.
@@ -710,6 +707,8 @@ the transactions page, which a depot has no use for.
   above).
 - **Logs:** Gwenhywfar and AqBanking log at error level only, and in release
   builds not at all; FinTS message and job logs are compiled out (patch above).
+  The debug log, if the user switches it on, is in memory only and masked (see
+  [Debug log](#debug-log)).
 - **The bank's texts are not trusted** (decided 2026-11-05, after the project
   owner found literal `<br>` tags in a TAN challenge). AqBanking passes the
   challenge on as the bank sent it, formatting included, into the TAN dialog
@@ -734,6 +733,88 @@ the transactions page, which a depot has no use for.
   memory until it is reused; it cannot be wiped from C++.
 - **AqBanking does not look for another application's configuration**
   (patched 2026-11-14, found 2026-11-08 by the tests; patch below).
+
+### Debug log
+
+Decided 2026-11-16 by the project owner, to iron out the remaining problems
+with certain banks and for the bank-specific adjustments of features to come.
+
+- **"Debug logging" in the settings** (`SettingsPage`, from the overview's
+  pull-down menu, which has it in every state, "Banking unavailable"
+  included). The setting is kept (`AppSettings::debugLogging`); the log never
+  is. With it on at start, the log records from the first moment: `main.cpp`
+  creates `DebugLog` before `Banking`. "Show debug log" (only while on) opens
+  `DebugLogPage`, the entries with time and source, newest at the bottom, and
+  below them "Copy debug log", which puts all of it on the clipboard.
+- **Transient**: `DebugLog` (`src/DebugLog.*`, the `debugLog` context
+  property, a list model) keeps entries in memory, up to 4 million characters,
+  dropping the oldest beyond that (the copied text says how many). Switching it
+  off clears it, and it ends with the app.
+- **What it records**, each line with date and time to the millisecond and a
+  source (`app`, `sent`, `received`, `aqbanking`, `progress`, `qt`):
+  - every FinTS message sent and received, complete as it goes over the wire
+    (from AqBanking, through the patched hook above): segments separated by
+    `|`, the encrypted part (`HNVSD`) shown as the message inside it, statements
+    inside segments by their own structure (CAMT XML, MT940/MT942/MT535 by
+    their tags). AqBanking speaks FinTS 3.0 only, so FinTS 4 XML messages do not
+    occur; the CAMT inside them is XML;
+  - at start: app version and release (the spec passes `ZB_VERSION` and
+    `ZB_RELEASE` to qmake), Qt, Sailfish OS, kernel, architecture, device (if
+    Sailjail lets it read `/etc/hw-release`), AqBanking, Gwenhywfar, GnuTLS,
+    libgcrypt, locale, `LANG`, time zone; the key request and its result;
+  - per command: what it is about, each step's result code, the TAN methods the
+    bank lists (ID, name, allowed, selected, medium name needed), the jobs found
+    for transactions and the CAMT choice, the bank access as AqBanking keeps it
+    (server, FinTS version, TAN method and input mechanism, BPD and UPD
+    versions, whether system ID and TAN medium are set), each account's type,
+    currency and BIC, how many balances, transactions, holdings arrived, the job
+    status, the last error, the time taken;
+  - every dialog shown (type, title, text, choices, image size and type,
+    flicker code) and how it was answered (cancelled, choice, or the number of
+    characters typed - never what);
+  - PIN requests (from memory or asked), AqBanking's verdict on a PIN, TAN
+    requests (method, input mechanism, format), the server certificate (name,
+    SHA-1, validity, status), AqBanking's progress lines at every level, and,
+    while on, AqBanking's and Gwenhywfar's own log at notice level
+    (`BankingThread::applyLogLevels()`, error level otherwise; more talkative
+    levels would dump messages unmasked); Qt's warnings (a message handler that
+    passes them on).
+- **Personal data is masked** (`LogMasker`, `src/LogMasker.*`): one `*` per
+  character, so structure and lengths stay; PIN and TAN become `[PIN]` and
+  `[TAN]`. FinTS messages by structure: **everything but a segment's header is
+  masked unless a rule says it is not personal**, so an unknown segment shows
+  only its header. Kept: the bank's parameters (`HIBPA`, `HIKOM`, every
+  `?I????S` parameter segment such as `HITANS`, `HIPINS`, `HISPAS`), message
+  header and end, the security headers but for login and system ID, result
+  codes with their texts (free-text masked) and parameters of up to four digits
+  (TAN methods), from `HIUPD` bank code, account type, currency and the jobs
+  allowed, from `HISAL` currency, date and time, from `HISPA` BIC and bank code,
+  the protocol fields of `HKTAN`/`HITAN` (process, segment, order reference)
+  and of requests (dates, formats, flags). Masked among others: login, customer
+  and system ID, registration number (`HKVVB`), IBANs, account numbers, names,
+  product names, limits, amounts, the TAN challenge, the TAN medium, attach
+  points. CAMT keeps element names, codes (`Cd` but in `Purp`, `CdtDbtInd`,
+  `Sts`...), currencies and the statement's own times; SWIFT keeps tags, block
+  names (`16R`/`16S`) and subfield marks (`?20`). Free text (AqBanking's lines,
+  Qt's warnings, the bank's texts) is masked by shape: IBANs, numbers of five
+  digits or more, amounts with a currency, e-mail addresses; a TAN challenge in
+  a dialog keeps only its markup and punctuation. On top of it all, the
+  personal values the app knows (logins, customer IDs, IBANs, account numbers
+  with and without leading zeros, owners' names and their words of four letters
+  or more, the registration number) are masked wherever they turn up
+  (`LogMasker::addPersonalData()`, from `publishAccounts()` and at setup).
+  Known gaps: a name the app does not know yet (the very first account list)
+  in free text, e.g. AqBanking's notices or a bank's result text.
+- **The masking runs on the thread that writes**, the banking thread mostly
+  (FinTS messages, statements of hundreds of KB); entries reach the model on
+  the UI thread in batches. The hook reads AqBanking's buffer in place: no copy
+  of PIN or TAN is made.
+- **The page shows** 600 characters of an entry, and up to 20,000 when tapped;
+  copying always takes everything. Plain text throughout, in a monospaced font
+  that breaks anywhere (FinTS has no spaces).
+- **"Messages from the bank" is gone** from the transactions page, the setup
+  page and the overview's pull-down menu, with `BankMessagesPage` and
+  `Banking::bankMessages`: the debug log has all of it, and more.
 
 ### Bank list
 
@@ -869,7 +950,13 @@ checked on every push.
   the accounts it counts per user, which stored accounts a made-up account
   list names (by IBAN, by account number, none, a different account type) and
   which it no longer does, removing one, the models (a bank access without accounts
-  included), and the bank search on the made-up list.
+  included), the bank search on the made-up list, and the debug log: what
+  `LogMasker` leaves of made-up FinTS messages sent and received (PIN and TAN,
+  login, system ID, registration number, TAN medium, result codes, bank and
+  account parameters, a balance, SEPA details, a TAN challenge), of statements
+  in CAMT, MT940 and MT535, of unknown segments, binary data and a message cut
+  short, of free text and of registered personal data; and `DebugLog` keeping
+  entries only while on.
   `StatementReader` was taken out of `BankingThread.cpp` for this, unchanged.
   `tests/run-engine-tests.sh` builds it in the build engine, from a 4.6 build
   directory; it installs AqBanking's data files with `make install` and makes
@@ -1229,6 +1316,18 @@ project unless the owner says so.
   the other TAN methods (as far as is known), a depot outside Atruvia, removing a bank access,
   and the reset after an unreadable store (`DataUnreadable`; the reset after a
   key that could not be read was checked on the emulator).
+
+- 2026-11-16, engine tests (all three architectures) and emulator (5.1, real
+  touch input, German): the debug log. Settings reached from the pull-down
+  menu with banking unavailable (key not confirmed after the emulator's
+  restart); the switch stored in `settings.conf`, "Show debug log" disabled
+  until on. Restarted with it on, the log started with the app: version
+  `0.5.0-1`, system, libraries, locale, the key request, Qt's warning from
+  Sailfish Secrets and the app's message. A long entry (a Qt warning patched
+  in, FinTS-like, 6979 characters) showed its start with the hint, wrapped
+  without spaces, and expanded on a tap; "Copy debug log" said "Copied". Not
+  seen: the clipboard's content, FinTS messages of a real bank in the log (the
+  emulator has none; the engine tests cover the masking of made-up ones).
 
 ## Roadmap
 

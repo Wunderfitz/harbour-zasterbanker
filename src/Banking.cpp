@@ -19,7 +19,9 @@
 
 #include "Banking.h"
 
+#include "DebugLog.h"
 #include "EncryptedConfigStore.h"
+#include "LogMasker.h"
 #include "TanImageProvider.h"
 
 #include <QDebug>
@@ -46,7 +48,6 @@ Banking::Banking(const QString &dataDirectory, TanImageProvider *tanImageProvide
     connect(&thread, &BankingThread::commandStarted, this, &Banking::handleCommandStarted);
     connect(&thread, &BankingThread::commandFinished, this, &Banking::handleCommandFinished);
     connect(&thread, &BankingThread::progress, this, &Banking::handleProgress);
-    connect(&thread, &BankingThread::bankMessagesReported, this, &Banking::handleBankMessages);
     connect(&thread, &BankingThread::interactionRequested, this, &Banking::handleInteractionRequested);
     connect(&thread, &BankingThread::interactionFinished, this, &Banking::handleInteractionFinished);
     connect(&thread, &BankingThread::pinsChanged, this, &Banking::handlePinsChanged);
@@ -84,11 +85,6 @@ Banking::Operation Banking::operation() const
 QString Banking::progressText() const
 {
     return currentProgressText;
-}
-
-QStringList Banking::bankMessages() const
-{
-    return currentBankMessages;
 }
 
 QVariantMap Banking::pinDeadlines() const
@@ -216,22 +212,30 @@ void Banking::retry()
 void Banking::startUp()
 {
     setState(Starting);
-    keyStore.requestKey(EncryptedConfigStore::dataExists(thread.dataFilePath()));
+    const bool dataExists = EncryptedConfigStore::dataExists(thread.dataFilePath());
+    DebugLog::write(DebugLog::App, QStringLiteral("Asking Sailfish Secrets for the data key (stored data: %1)")
+                    .arg(dataExists ? QStringLiteral("yes") : QStringLiteral("no")));
+    keyStore.requestKey(dataExists);
 }
 
 void Banking::handleKeyAvailable(const QByteArray &key)
 {
+    DebugLog::write(DebugLog::App, QStringLiteral("Data key received"));
     // The banking thread wipes its copy once the store has it.
     thread.initialize(key);
 }
 
 void Banking::handleKeyFailed(const QString &message, bool keyMissing)
 {
+    DebugLog::write(DebugLog::App, QStringLiteral("Data key not available (missing: %1): %2")
+                    .arg(keyMissing ? QStringLiteral("yes") : QStringLiteral("no"), LogMasker::text(message)));
     setState(keyMissing ? DataUnreadable : Failed, message);
 }
 
 void Banking::handleKeyDeleted(bool success, const QString &message)
 {
+    DebugLog::write(DebugLog::App, QStringLiteral("Data key deleted: %1 %2")
+                    .arg(success ? QStringLiteral("yes") : QStringLiteral("no"), LogMasker::text(message)));
     // The data is gone by now. Trying again uses the old key, if it can be read.
     if (!success) {
         setState(Failed, tr("Your data was deleted, but its key could not be removed from Sailfish Secrets: %1").arg(message));
@@ -281,12 +285,6 @@ void Banking::handleProgress(const QString &text)
 {
     currentProgressText = text;
     emit progressTextChanged();
-}
-
-void Banking::handleBankMessages(const QStringList &messages)
-{
-    currentBankMessages = messages;
-    emit bankMessagesChanged();
 }
 
 void Banking::handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,

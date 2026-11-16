@@ -20,9 +20,11 @@
 #include "BankingThread.h"
 
 #include "AqHbciShim.h"
+#include "DebugLog.h"
 #include "EncryptedConfigStore.h"
 #include "FinTsRegistration.h"
 #include "GwenGui.h"
+#include "LogMasker.h"
 #include "StatementReader.h"
 
 #include <QDataStream>
@@ -35,6 +37,7 @@
 #include <QMutexLocker>
 #include <QSet>
 
+#include <aqbanking/account_type.h>
 #include <aqbanking/banking_online.h>
 #include <aqbanking/types/account_spec.h>
 #include <aqbanking/types/imexporter_context.h>
@@ -80,6 +83,51 @@ void wipe(QByteArray &data)
     }
     data.clear();
 }
+
+// For the debug log, which writes everything in English.
+QString commandName(int command)
+{
+    switch (command) {
+    case BankingThread::Initialize: return QStringLiteral("start banking");
+    case BankingThread::AddBankAccess: return QStringLiteral("add bank access");
+    case BankingThread::FetchBalances: return QStringLiteral("fetch balances");
+    case BankingThread::RemoveBankAccess: return QStringLiteral("remove bank access");
+    case BankingThread::ResetData: return QStringLiteral("delete all data");
+    case BankingThread::FetchTransactions: return QStringLiteral("fetch transactions");
+    case BankingThread::FetchHoldings: return QStringLiteral("fetch holdings");
+    case BankingThread::UpdateBankAccess: return QStringLiteral("update accounts and bank data");
+    case BankingThread::ChangeTanMethod: return QStringLiteral("change TAN method");
+    }
+    return QString::number(command);
+}
+
+QString interactionName(int type)
+{
+    switch (type) {
+    case BankingThread::PinInteraction: return QStringLiteral("PIN");
+    case BankingThread::TanInteraction: return QStringLiteral("TAN");
+    case BankingThread::TextInteraction: return QStringLiteral("text");
+    case BankingThread::ChoiceInteraction: return QStringLiteral("choice");
+    case BankingThread::MessageInteraction: return QStringLiteral("message");
+    }
+    return QString::number(type);
+}
+
+QString yesNo(bool value)
+{
+    return value ? QStringLiteral("yes") : QStringLiteral("no");
+}
+
+// Personal values in the log: one * per character, as LogMasker does.
+QString masked(const char *value)
+{
+    return QString(static_cast<int>(value ? std::strlen(value) : 0), QLatin1Char('*'));
+}
+
+void log(const QString &text)
+{
+    DebugLog::write(DebugLog::App, text);
+}
 }
 
 BankingThread::BankingThread(const QString &dataDirectory, QObject *parent)
@@ -94,7 +142,6 @@ BankingThread::BankingThread(const QString &dataDirectory, QObject *parent)
     , banking(nullptr)
     , gui(nullptr)
     , configStore(nullptr)
-    , collectingBankMessages(false)
 {
     interactionResponse.accepted = false;
     interactionResponse.choice = 0;
@@ -269,6 +316,18 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
         interactionAnswered = false;
     }
 
+    if (DebugLog::isEnabled()) {
+        // A TAN challenge may name payee and amount: of it, only the shape.
+        log(QStringLiteral("Dialog %1 (%2): \"%3\" - %4%5%6%7")
+            .arg(interactionId).arg(interactionName(type), LogMasker::text(title),
+                 type == TanInteraction ? LogMasker::everything(text) : LogMasker::text(text),
+                 choices.isEmpty() ? QString() : QStringLiteral(" - choices: ") + LogMasker::text(choices.join(QStringLiteral(" | "))),
+                 image.isEmpty() ? QString() : QStringLiteral(" - image: %1 bytes of %2, %3")
+                                                .arg(image.size()).arg(mimeType, decodedImage.isNull() ? QStringLiteral("not readable")
+                                                                                                       : QStringLiteral("%1x%2").arg(decodedImage.width()).arg(decodedImage.height())),
+                 flickerCode.isEmpty() ? (digitsOnly ? QStringLiteral(" - digits only") : QString())
+                                       : QStringLiteral(" - flicker code of %1 frames").arg(flickerCode.length())));
+    }
     emit interactionRequested(interactionId, type, title, text, choices, decodedImage, presetText, flickerCode,
                               digitsOnly);
 
@@ -285,6 +344,23 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
         interactionAnswered = false;
     }
 
+    // never what was typed, nor, for PIN and TAN, how long it was
+    QString answer = QStringLiteral("cancelled");
+    if (response.accepted) {
+        switch (type) {
+        case ChoiceInteraction:
+        case MessageInteraction:
+            answer = QStringLiteral("answered with choice %1").arg(response.choice);
+            break;
+        case TextInteraction:
+            answer = QStringLiteral("answered with %1 characters").arg(response.text.size());
+            break;
+        default:
+            answer = QStringLiteral("answered");
+            break;
+        }
+    }
+    log(QStringLiteral("Dialog %1 %2").arg(interactionId).arg(answer));
     emit interactionFinished(interactionId);
     return response;
 }
@@ -292,7 +368,6 @@ BankingThread::Response BankingThread::requestInteraction(InteractionType type, 
 void BankingThread::reportProgress(const QString &text)
 {
     if (!text.isEmpty()) {
-        collectBankMessage(text);
         emit progress(text);
     }
 }
@@ -300,35 +375,19 @@ void BankingThread::reportProgress(const QString &text)
 void BankingThread::reportError(const QString &text)
 {
     if (!text.isEmpty()) {
-        collectBankMessage(text);
         lastError = text;
         emit progress(text);
-    }
-}
-
-// AqBanking logs every result code the bank sends as "HBCI: 0020 - text (S)",
-// "S" for the answer to one segment, "M" for the whole message, whatever its
-// level (notice, warning or error). Not translated, so this is how to tell them
-// from AqBanking's own messages. Without them, a fetch that finds nothing says
-// nothing about why: the bank's warnings (3xxx) fail neither the job nor the call.
-void BankingThread::collectBankMessage(const QString &text)
-{
-    static const QString prefix = QStringLiteral("HBCI: ");
-    if (collectingBankMessages && text.startsWith(prefix)) {
-        const QString message = text.mid(prefix.length());
-        if (!bankMessages.contains(message)) {
-            bankMessages.append(message);
-        }
     }
 }
 
 void BankingThread::run()
 {
     GWEN_Init();
-    GWEN_Logger_SetLevel(GWEN_LOGDOMAIN, GWEN_LoggerLevel_Error);
-    GWEN_Logger_SetLevel(AQBANKING_LOGDOMAIN, GWEN_LoggerLevel_Error);
-    GWEN_Logger_SetLevel("aqhbci", GWEN_LoggerLevel_Error);
+    applyLogLevels();
     gui = GwenGui::create(this);
+    // Every FinTS message, to the debug log, which masks it, if it is on.
+    ZB_SetMessageLogHook(DebugLog::writeFinTsMessage);
+    LogMasker::addPersonalData(QStringList() << QStringLiteral(FINTS_REGISTRATION_NUMBER));
     GWEN_Gui_SetGui(gui);
 
     GWEN_PLUGIN_MANAGER *dbioPlugins = GWEN_PluginManager_FindPluginManager(GWEN_DBIO_PLUGIN_NAME);
@@ -373,6 +432,9 @@ void BankingThread::run()
             continue;
         }
         lastError.clear();
+        applyLogLevels();
+        commandTimer.start();
+        logCommand(command);
 
         switch (command.type) {
         case Initialize:
@@ -413,6 +475,7 @@ void BankingThread::run()
     }
 
     shutDownAqBanking();
+    ZB_SetMessageLogHook(nullptr);
     GWEN_Gui_SetGui(nullptr);
     GwenGui::destroy(gui);
     gui = nullptr;
@@ -435,6 +498,7 @@ void BankingThread::executeInitialize(Command &command)
     if (loadResult == EncryptedConfigStore::DecryptionFailed || loadResult == EncryptedConfigStore::ReadFailed) {
         delete configStore;
         configStore = nullptr;
+        log(QStringLiteral("The stored data cannot be decrypted (%1)").arg(loadResult));
         emit initialized(InitializationDataUnreadable, tr("Your stored data cannot be decrypted."));
         return;
     }
@@ -450,6 +514,7 @@ void BankingThread::executeInitialize(Command &command)
         banking = nullptr;
         delete configStore;
         configStore = nullptr;
+        log(QStringLiteral("AB_Banking_Init failed: %1").arg(rv));
         emit initialized(InitializationFailed, tr("The banking library could not be started (%1).").arg(rv));
         return;
     }
@@ -465,22 +530,23 @@ void BankingThread::executeInitialize(Command &command)
             qWarning() << "Could not set the TAN input mechanism" << mechanism;
         }
     }
+    log(QStringLiteral("Banking started: %1 bank accesses, %2 stored balances").arg(qMax(userCount, 0)).arg(storedBalances.size()));
     emit initialized(InitializationSucceeded, QString());
     publishAccounts();
+    for (int i = 0; i < userCount; i++) {
+        logBankAccess(users[i].uid);
+    }
 }
 
 void BankingThread::executeAddBankAccess(const Command &command)
 {
     emit commandStarted(AddBankAccess);
     if (!banking) {
-        emit commandFinished(AddBankAccess, false, tr("Banking is not available."));
+        finishCommand(AddBankAccess, false, tr("Banking is not available."));
         return;
     }
 
     const QVariantMap &arguments = command.arguments;
-    // Every step's result lines, so that a setup that ends without accounts can
-    // show what the bank said.
-    startCollectingBankMessages();
     uint32_t uid = 0;
     int rv = ZB_AddPinTanUser(banking,
                               arguments.value(QStringLiteral("bankCode")).toString().toUtf8().constData(),
@@ -489,52 +555,51 @@ void BankingThread::executeAddBankAccess(const Command &command)
                               arguments.value(QStringLiteral("serverUrl")).toString().toUtf8().constData(),
                               arguments.value(QStringLiteral("bankName")).toString().toUtf8().constData(),
                               &uid);
+    log(QStringLiteral("Bank access %1 created: %2").arg(uid).arg(rv));
     if (rv < 0) {
-        reportBankMessages();
-        emit commandFinished(AddBankAccess, false, failureMessage(rv, tr("The bank access could not be created.")));
+        finishCommand(AddBankAccess, false, failureMessage(rv, tr("The bank access could not be created.")));
         return;
     }
 
     // A failed setup leaves nothing behind: the half-made user goes again.
     reportProgress(tr("Connecting to the bank..."));
     rv = ZB_GetSysId(banking, uid);
+    log(QStringLiteral("Handshake (system ID): %1").arg(rv));
     if (rv < 0) {
         const QString message = failureMessage(rv, tr("The bank did not accept the connection."));
         ZB_DeleteUser(banking, uid);
-        reportBankMessages();
-        emit commandFinished(AddBankAccess, false, message);
+        finishCommand(AddBankAccess, false, message);
         return;
     }
 
     if (!chooseTanMethod(uid)) {
         const QString message = failureMessage(GWEN_ERROR_USER_ABORTED, QString());
         ZB_DeleteUser(banking, uid);
-        reportBankMessages();
-        emit commandFinished(AddBankAccess, false, message);
+        finishCommand(AddBankAccess, false, message);
         return;
     }
 
     reportProgress(tr("Retrieving your accounts..."));
     rv = ZB_GetAccounts(banking, uid, nullptr, 0, nullptr);
+    log(QStringLiteral("Account list: %1").arg(rv));
     // A bank access without accounts would be of no use (found 2026-11-11 at a
     // Sparkasse: the setup went through, and no account came).
     if (rv <= 0) {
         const QString message = rv < 0 ? failureMessage(rv, tr("The bank did not list your accounts."))
                                         : tr("The bank listed no accounts for this access.");
         ZB_DeleteUser(banking, uid);
-        reportBankMessages();
-        emit commandFinished(AddBankAccess, false, message);
+        finishCommand(AddBankAccess, false, message);
         return;
     }
 
     publishAccounts();
+    logBankAccess(uid);
     // Within the same command, so the PIN entered for the setup is reused.
     // Only the new bank access's: the others would ask for their PINs.
     // Balances that do not come are no reason to undo the setup.
     QString balanceError;
     retrieveBalances(&balanceError, true, uid);
-    reportBankMessages();
-    emit commandFinished(AddBankAccess, true, QString());
+    finishCommand(AddBankAccess, true, QString());
 }
 
 bool BankingThread::chooseTanMethod(uint32_t userUid, bool change)
@@ -542,11 +607,19 @@ bool BankingThread::chooseTanMethod(uint32_t userUid, bool change)
     ZB_TAN_METHOD methods[MAX_TAN_METHODS];
     const int count = ZB_ListTanMethods(banking, userUid, methods, MAX_TAN_METHODS);
     QList<ZB_TAN_METHOD> allowed;
+    QStringList known;
     for (int i = 0; i < count; i++) {
         if (methods[i].allowed) {
             allowed.append(methods[i]);
         }
+        known.append(QStringLiteral("%1 \"%2\"%3%4, medium name %5")
+                     .arg(methods[i].id).arg(QString::fromUtf8(methods[i].name),
+                                             methods[i].allowed ? QStringLiteral(" allowed") : QString(),
+                                             methods[i].selected ? QStringLiteral(" selected") : QString(),
+                                             methods[i].tanMediumNeeded == 2 ? QStringLiteral("required")
+                                             : (methods[i].tanMediumNeeded == 1 ? QStringLiteral("optional") : QStringLiteral("not allowed"))));
     }
+    log(QStringLiteral("TAN methods (%1): %2").arg(count).arg(LogMasker::text(known.join(QStringLiteral("; ")))));
     // None means the bank does without two-step TANs for this user; AqBanking
     // then sticks to the single-step procedure on its own.
     if (allowed.isEmpty()) {
@@ -587,6 +660,7 @@ bool BankingThread::chooseTanMethod(uint32_t userUid, bool change)
         chosen = response.choice;
     }
     const int rv = ZB_SelectTanMethod(banking, userUid, allowed.at(chosen).id);
+    log(QStringLiteral("TAN method %1 selected: %2").arg(allowed.at(chosen).id).arg(rv));
     if (rv < 0) {
         qWarning() << "Selecting TAN method" << allowed.at(chosen).id << "failed" << rv;
         // At setup, AqBanking goes on with the method it chose itself, as before.
@@ -644,6 +718,7 @@ bool BankingThread::chooseTanMedium(uint32_t userUid, const QString &current)
             continue;
         }
         const int rv = ZB_SetTanMediumId(banking, userUid, latin1.constData());
+        log(QStringLiteral("TAN medium name of %1 characters stored: %2").arg(latin1.size()).arg(rv));
         if (rv < 0) {
             qWarning() << "Setting the TAN medium failed" << rv;
             lastError = tr("The name of the TAN medium could not be stored (%1).").arg(rv);
@@ -657,14 +732,14 @@ void BankingThread::executeFetchBalances(const Command &command)
 {
     emit commandStarted(FetchBalances);
     if (!banking) {
-        emit commandFinished(FetchBalances, false, tr("Banking is not available."));
+        finishCommand(FetchBalances, false, tr("Banking is not available."));
         return;
     }
     QString message;
     const QVariant bankAccessId = command.arguments.value(QStringLiteral("bankAccessId"));
     const bool success = bankAccessId.isValid() ? retrieveBalances(&message, true, bankAccessId.toUInt())
                                                 : retrieveBalances(&message);
-    emit commandFinished(FetchBalances, success, message);
+    finishCommand(FetchBalances, success, message);
 }
 
 bool BankingThread::retrieveBalances(QString *errorMessage, bool oneBankAccess, uint32_t bankAccessId)
@@ -698,11 +773,24 @@ bool BankingThread::retrieveBalances(QString *errorMessage, bool oneBankAccess, 
 
     AB_IMEXPORTER_CONTEXT *context = AB_ImExporterContext_new();
     reportProgress(tr("Retrieving balances..."));
+    const int jobCount = AB_Transaction_List2_GetSize(jobs);
     rv = AB_Banking_SendCommands(banking, jobs, context);
+    if (DebugLog::isEnabled()) {
+        QStringList statuses;
+        AB_TRANSACTION_LIST2_ITERATOR *it = AB_Transaction_List2_First(jobs);
+        for (AB_TRANSACTION *job = it ? AB_Transaction_List2Iterator_Data(it) : nullptr; job;
+             job = AB_Transaction_List2Iterator_Next(it)) {
+            statuses.append(QStringLiteral("account %1 %2").arg(AB_Transaction_GetUniqueAccountId(job))
+                            .arg(QLatin1String(AB_Transaction_Status_toString(AB_Transaction_GetStatus(job)))));
+        }
+        AB_Transaction_List2Iterator_free(it);
+        log(QStringLiteral("Balance jobs for %1 accounts sent: %2 (%3)").arg(jobCount).arg(rv).arg(statuses.join(QStringLiteral(", "))));
+    }
     AB_Transaction_List2_freeAll(jobs);
 
     const QVariantList balances = StatementReader::balances(context, QDateTime::currentDateTimeUtc());
     AB_ImExporterContext_free(context);
+    log(QStringLiteral("Balances read: %1").arg(balances.size()));
 
     if (!balances.isEmpty()) {
         storeBalances(balances);
@@ -719,10 +807,11 @@ void BankingThread::executeFetchTransactions(const Command &command)
 {
     emit commandStarted(FetchTransactions);
     if (!banking) {
-        emit commandFinished(FetchTransactions, false, tr("Banking is not available."));
+        finishCommand(FetchTransactions, false, tr("Banking is not available."));
         return;
     }
     const uint accountId = command.arguments.value(QStringLiteral("accountId")).toUInt();
+    logAccount(accountId);
 
     // CAMT first, as some banks no longer offer MT940 at all; but not where the
     // account's UPD lists only another job, such as a credit card's.
@@ -735,9 +824,14 @@ void BankingThread::executeFetchTransactions(const Command &command)
     if (preferred < 0) {
         qWarning() << "Could not set the CAMT preference for this account" << preferred;
     }
+    log(QStringLiteral("Jobs for transactions: %1 (CAMT %2, other %3, UPD lists HKCAZ %4); CAMT first: %5 (%6)")
+        .arg(jobs).arg(yesNo(jobs >= 0 && (jobs & ZB_TRANSACTION_JOB_CAMT)), yesNo(jobs >= 0 && (jobs & ZB_TRANSACTION_JOB_OTHER)),
+                       yesNo(jobs >= 0 && (jobs & ZB_TRANSACTION_JOB_CAMT_LISTED)), yesNo(camtFirst))
+        .arg(preferred));
 
     reportProgress(tr("Retrieving transactions..."));
     const int bicResult = ZB_EnsureAccountBic(banking, accountId);
+    log(QStringLiteral("SEPA details for the BIC: %1").arg(bicResult == 0 ? QStringLiteral("not needed") : QString::number(bicResult)));
     if (bicResult < 0) {
         // Not the end yet: the bank may do without, and if not, its answer says so.
         qWarning() << "Could not fetch the SEPA details of this account" << bicResult;
@@ -745,7 +839,6 @@ void BankingThread::executeFetchTransactions(const Command &command)
         publishAccounts();
     }
     lastError.clear();
-    startCollectingBankMessages();
 
     QVariantList transactions;
     bool hasAnswer = false;
@@ -754,9 +847,10 @@ void BankingThread::executeFetchTransactions(const Command &command)
     // A bank that rejects the request does not fail the job or the call, it only
     // reports an error: without transactions, that is not "no transactions".
     bool success = rv >= 0 && hasAnswer && !jobFailed && (!transactions.isEmpty() || lastError.isEmpty());
+    log(QStringLiteral("Transactions: sent %1, answer %2, job failed %3, %4 transactions, last error: %5")
+        .arg(rv).arg(yesNo(hasAnswer), yesNo(jobFailed)).arg(transactions.size())
+        .arg(lastError.isEmpty() ? QStringLiteral("none") : LogMasker::text(lastError)));
 
-    // Before the result, so that the page has them when it learns the outcome.
-    reportBankMessages();
     if (success) {
         emit transactionsFetched(accountId, transactions);
     }
@@ -772,7 +866,7 @@ void BankingThread::executeFetchTransactions(const Command &command)
             message = failureMessage(rv < 0 ? rv : GWEN_ERROR_GENERIC, tr("The transactions could not be retrieved."));
         }
     }
-    emit commandFinished(FetchTransactions, success, message);
+    finishCommand(FetchTransactions, success, message);
 }
 
 int BankingThread::requestTransactions(uint32_t accountId, QVariantList *transactions, bool *hasAnswer, bool *jobFailed)
@@ -812,10 +906,11 @@ void BankingThread::executeFetchHoldings(const Command &command)
 {
     emit commandStarted(FetchHoldings);
     if (!banking) {
-        emit commandFinished(FetchHoldings, false, tr("Banking is not available."));
+        finishCommand(FetchHoldings, false, tr("Banking is not available."));
         return;
     }
     const uint accountId = command.arguments.value(QStringLiteral("accountId")).toUInt();
+    logAccount(accountId);
 
     reportProgress(tr("Retrieving holdings..."));
     lastError.clear();
@@ -833,6 +928,9 @@ void BankingThread::executeFetchHoldings(const Command &command)
 
     const QVariantList holdings = StatementReader::holdings(context);
     AB_ImExporterContext_free(context);
+    log(QStringLiteral("Holdings: sent %1, job %2, %3 holdings, last error: %4")
+        .arg(rv).arg(QLatin1String(AB_Transaction_Status_toString(status))).arg(holdings.size())
+        .arg(lastError.isEmpty() ? QStringLiteral("none") : LogMasker::text(lastError)));
 
     // Unlike with transactions, the context has no entry for the account to prove
     // an answer. The job does: it only ends up accepted if the bank said it carried
@@ -851,7 +949,7 @@ void BankingThread::executeFetchHoldings(const Command &command)
                 ? tr("The bank does not offer the holdings of this account.")
                 : failureMessage(rv < 0 ? rv : GWEN_ERROR_GENERIC, tr("The holdings could not be retrieved."));
     }
-    emit commandFinished(FetchHoldings, success, message);
+    finishCommand(FetchHoldings, success, message);
 }
 
 // Everything about a bank access the bank decides, asked for afresh: its
@@ -863,19 +961,21 @@ void BankingThread::executeUpdateBankAccess(const Command &command)
 {
     emit commandStarted(UpdateBankAccess);
     if (!banking) {
-        emit commandFinished(UpdateBankAccess, false, tr("Banking is not available."));
+        finishCommand(UpdateBankAccess, false, tr("Banking is not available."));
         return;
     }
     const uint32_t uid = command.arguments.value(QStringLiteral("bankAccessId")).toUInt();
-    startCollectingBankMessages();
+    logBankAccess(uid);
     reportProgress(tr("Updating accounts and bank data..."));
     lastError.clear();
     uint32_t unlisted[MAX_UNLISTED_ACCOUNTS];
     int unlistedCount = 0;
     int rv = ZB_GetAccounts(banking, uid, unlisted, MAX_UNLISTED_ACCOUNTS, &unlistedCount);
     // the bank's descriptions of its TAN methods may have changed
-    ZB_UpdateTanMechanism(banking, uid);
+    const int mechanism = ZB_UpdateTanMechanism(banking, uid);
+    log(QStringLiteral("Account list: %1, %2 accounts no longer listed; TAN input mechanism: %3").arg(rv).arg(unlistedCount).arg(mechanism));
     publishAccounts();
+    logBankAccess(uid);
     if (rv > 0 && unlistedCount > 0) {
         QList<uint32_t> accountIds;
         for (int i = 0; i < unlistedCount; i++) {
@@ -883,6 +983,7 @@ void BankingThread::executeUpdateBankAccess(const Command &command)
         }
         offerToRemoveAccounts(accountIds);
         rv = ZB_CountAccounts(banking, uid);
+        log(QStringLiteral("Accounts left: %1").arg(rv));
     }
     QString message;
     if (rv > 0) {
@@ -892,8 +993,7 @@ void BankingThread::executeUpdateBankAccess(const Command &command)
         message = rv < 0 ? failureMessage(rv, tr("The bank did not list your accounts."))
                          : tr("The bank listed no accounts for this access.");
     }
-    reportBankMessages();
-    emit commandFinished(UpdateBankAccess, rv > 0, message);
+    finishCommand(UpdateBankAccess, rv > 0, message);
 }
 
 // AqBanking keeps an account the bank no longer lists (closed, say), so the
@@ -927,6 +1027,7 @@ void BankingThread::offerToRemoveAccounts(const QList<uint32_t> &accountIds)
     }
     for (uint32_t accountId : accountIds) {
         const int rv = ZB_DeleteAccount(banking, accountId);
+        log(QStringLiteral("Account %1 removed: %2").arg(accountId).arg(rv));
         if (rv < 0) {
             qWarning() << "Removing an account failed" << rv;
         }
@@ -939,37 +1040,27 @@ void BankingThread::executeChangeTanMethod(const Command &command)
 {
     emit commandStarted(ChangeTanMethod);
     if (!banking) {
-        emit commandFinished(ChangeTanMethod, false, tr("Banking is not available."));
+        finishCommand(ChangeTanMethod, false, tr("Banking is not available."));
         return;
     }
     lastError.clear();
+    logBankAccess(command.arguments.value(QStringLiteral("bankAccessId")).toUInt());
     const bool changed = chooseTanMethod(command.arguments.value(QStringLiteral("bankAccessId")).toUInt(), true);
-    emit commandFinished(ChangeTanMethod, changed, changed ? QString()
+    finishCommand(ChangeTanMethod, changed, changed ? QString()
                          : (lastError.isEmpty() ? failureMessage(GWEN_ERROR_USER_ABORTED, QString()) : lastError));
-}
-
-void BankingThread::startCollectingBankMessages()
-{
-    bankMessages.clear();
-    collectingBankMessages = true;
-}
-
-void BankingThread::reportBankMessages()
-{
-    collectingBankMessages = false;
-    emit bankMessagesReported(bankMessages);
 }
 
 void BankingThread::executeRemoveBankAccess(const Command &command)
 {
     emit commandStarted(RemoveBankAccess);
     if (!banking) {
-        emit commandFinished(RemoveBankAccess, false, tr("Banking is not available."));
+        finishCommand(RemoveBankAccess, false, tr("Banking is not available."));
         return;
     }
     const int rv = ZB_DeleteUser(banking, command.arguments.value(QStringLiteral("bankAccessId")).toUInt());
+    log(QStringLiteral("Bank access removed: %1").arg(rv));
     publishAccounts();
-    emit commandFinished(RemoveBankAccess, rv >= 0, rv >= 0 ? QString() : failureMessage(rv, tr("The bank access could not be removed.")));
+    finishCommand(RemoveBankAccess, rv >= 0, rv >= 0 ? QString() : failureMessage(rv, tr("The bank access could not be removed.")));
 }
 
 void BankingThread::executeResetData()
@@ -979,7 +1070,7 @@ void BankingThread::executeResetData()
     storedBalances.clear();
     const bool removed = !QFile::exists(dataFilePath()) || QFile::remove(dataFilePath());
     emit accountsChanged(QVariantList());
-    emit commandFinished(ResetData, removed, removed ? QString() : tr("The stored data could not be removed."));
+    finishCommand(ResetData, removed, removed ? QString() : tr("The stored data could not be removed."));
 }
 
 void BankingThread::publishPins(bool force)
@@ -1016,9 +1107,12 @@ void BankingThread::publishAccounts()
     QMap<uint, ZB_USER_INFO> users;
     ZB_USER_INFO userInfos[MAX_USERS];
     const int userCount = ZB_ListUsers(banking, userInfos, MAX_USERS);
+    QStringList personal;
     for (int i = 0; i < userCount; i++) {
         users.insert(userInfos[i].uid, userInfos[i]);
+        personal << QString::fromUtf8(userInfos[i].userId) << QString::fromUtf8(userInfos[i].customerId);
     }
+    QStringList owners;
 
     AB_ACCOUNT_SPEC_LIST *specs = nullptr;
     if (AB_Banking_GetAccountSpecList(banking, &specs) >= 0 && specs) {
@@ -1040,9 +1134,14 @@ void BankingThread::publishAccounts()
             account.insert(QStringLiteral("currency"), QString::fromUtf8(AB_AccountSpec_GetCurrency(spec)));
             account.insert(QStringLiteral("isDepot"), AB_AccountSpec_GetType(spec) == AB_AccountType_Investment);
             accounts.append(account);
+            personal << QString::fromUtf8(AB_AccountSpec_GetIban(spec)) << QString::fromUtf8(AB_AccountSpec_GetAccountNumber(spec));
+            owners << QString::fromUtf8(AB_AccountSpec_GetOwnerName(spec));
         }
         AB_AccountSpec_List_free(specs);
     }
+    // whatever the debug log shows, these are masked in it
+    LogMasker::addPersonalData(personal);
+    LogMasker::addPersonalData(owners, true);
     // A bank access without accounts as an entry of its own (accountId 0), so
     // that the overview shows it, to retrieve them again or to remove it.
     QSet<uint> withAccounts;
@@ -1157,6 +1256,121 @@ void BankingThread::shutDownAqBanking()
     }
     delete configStore;
     configStore = nullptr;
+}
+
+void BankingThread::finishCommand(int command, bool success, const QString &message)
+{
+    log(QStringLiteral("Finished %1 after %2 ms: %3%4").arg(commandName(command)).arg(commandTimer.elapsed())
+        .arg(success ? QStringLiteral("succeeded") : QStringLiteral("failed"),
+             message.isEmpty() ? QString() : QStringLiteral(" - ") + LogMasker::text(message)));
+    emit commandFinished(command, success, message);
+}
+
+/*
+ * AqBanking's and Gwenhywfar's own log: errors only, unless the debug log is
+ * on, which takes notices as well. Their more talkative levels would dump what
+ * they send, PIN and TAN included, where nothing masks it.
+ */
+void BankingThread::applyLogLevels()
+{
+    const GWEN_LOGGER_LEVEL level = DebugLog::isEnabled() ? GWEN_LoggerLevel_Notice : GWEN_LoggerLevel_Error;
+    GWEN_Logger_SetLevel(GWEN_LOGDOMAIN, level);
+    GWEN_Logger_SetLevel(AQBANKING_LOGDOMAIN, level);
+    GWEN_Logger_SetLevel("aqhbci", level);
+}
+
+void BankingThread::logCommand(const Command &command)
+{
+    if (!DebugLog::isEnabled()) {
+        return;
+    }
+    const QVariantMap &arguments = command.arguments;
+    QString details;
+    switch (command.type) {
+    case AddBankAccess: {
+        const QString userId = arguments.value(QStringLiteral("userId")).toString();
+        const QString customerId = arguments.value(QStringLiteral("customerId")).toString();
+        LogMasker::addPersonalData(QStringList() << userId << customerId);
+        details = QStringLiteral("bank code %1, server %2, login of %3 characters, customer ID of %4 characters")
+                .arg(arguments.value(QStringLiteral("bankCode")).toString(), arguments.value(QStringLiteral("serverUrl")).toString())
+                .arg(userId.length()).arg(customerId.length());
+        break;
+    }
+    case FetchTransactions:
+    case FetchHoldings:
+        details = QStringLiteral("account %1").arg(arguments.value(QStringLiteral("accountId")).toUInt());
+        break;
+    case FetchBalances:
+        details = arguments.contains(QStringLiteral("bankAccessId"))
+                ? QStringLiteral("bank access %1").arg(arguments.value(QStringLiteral("bankAccessId")).toUInt())
+                : QStringLiteral("all bank accesses");
+        break;
+    case RemoveBankAccess:
+    case UpdateBankAccess:
+    case ChangeTanMethod:
+        details = QStringLiteral("bank access %1").arg(arguments.value(QStringLiteral("bankAccessId")).toUInt());
+        break;
+    default:
+        break;
+    }
+    log(QStringLiteral("Starting %1%2").arg(commandName(command.type), details.isEmpty() ? QString() : QStringLiteral(": ") + details));
+}
+
+// What AqBanking knows about a bank access and its accounts, without anything personal.
+void BankingThread::logBankAccess(uint32_t uid)
+{
+    if (!DebugLog::isEnabled() || !banking) {
+        return;
+    }
+    ZB_USER_INFO users[MAX_USERS];
+    const int userCount = ZB_ListUsers(banking, users, MAX_USERS);
+    for (int i = 0; i < userCount; i++) {
+        const ZB_USER_INFO &user = users[i];
+        if (user.uid != uid) {
+            continue;
+        }
+        log(QStringLiteral("Bank access %1: bank code %2, server %3, FinTS %4, login %5, customer ID %6, system ID %7, "
+                           "TAN method %8, TAN input mechanism %9, TAN medium name %10, BPD version %11, UPD version %12")
+            .arg(uid).arg(QString::fromUtf8(user.bankCode), QString::fromUtf8(user.server)).arg(user.hbciVersion)
+            .arg(masked(user.userId), masked(user.customerId), yesNo(user.hasSystemId)).arg(user.tanMethod).arg(user.tanMechanism)
+            .arg(yesNo(user.hasTanMedium)).arg(user.bpdVersion).arg(user.updVersion));
+    }
+    AB_ACCOUNT_SPEC_LIST *specs = nullptr;
+    if (AB_Banking_GetAccountSpecList(banking, &specs) >= 0 && specs) {
+        for (AB_ACCOUNT_SPEC *spec = AB_AccountSpec_List_First(specs); spec; spec = AB_AccountSpec_List_Next(spec)) {
+            uint32_t userUid = 0;
+            if (ZB_GetAccountUser(banking, AB_AccountSpec_GetUniqueId(spec), &userUid) >= 0 && userUid == uid) {
+                logAccount(AB_AccountSpec_GetUniqueId(spec));
+            }
+        }
+        AB_AccountSpec_List_free(specs);
+    }
+}
+
+void BankingThread::logAccount(uint32_t accountId)
+{
+    if (!DebugLog::isEnabled() || !banking) {
+        return;
+    }
+    AB_ACCOUNT_SPEC *spec = nullptr;
+    if (AB_Banking_GetAccountSpecByUniqueId(banking, accountId, &spec) < 0 || !spec) {
+        log(QStringLiteral("Account %1: unknown").arg(accountId));
+        return;
+    }
+    uint32_t userUid = 0;
+    ZB_GetAccountUser(banking, accountId, &userUid);
+    const int type = AB_AccountSpec_GetType(spec);
+    log(QStringLiteral("Account %1 of bank access %2: type %3 (%4), currency %5, IBAN %6, BIC %7, account number %8, "
+                       "sub-account %9, owner %10, name %11")
+        .arg(accountId).arg(userUid).arg(type).arg(QLatin1String(AB_AccountType_toChar(static_cast<AB_ACCOUNT_TYPE>(type))),
+                                                    QString::fromUtf8(AB_AccountSpec_GetCurrency(spec)),
+                                                    masked(AB_AccountSpec_GetIban(spec)),
+                                                    QString::fromUtf8(AB_AccountSpec_GetBic(spec)),
+                                                    masked(AB_AccountSpec_GetAccountNumber(spec)),
+                                                    masked(AB_AccountSpec_GetSubAccountNumber(spec)),
+                                                    masked(AB_AccountSpec_GetOwnerName(spec)),
+                                                    masked(AB_AccountSpec_GetAccountName(spec))));
+    AB_AccountSpec_free(spec);
 }
 
 QString BankingThread::failureMessage(int errorCode, const QString &fallback) const

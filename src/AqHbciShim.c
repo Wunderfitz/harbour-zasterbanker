@@ -34,6 +34,7 @@
 #include "aqhbci/ajobs/jobgettrans_camt_l.h"
 #include "aqhbci/ajobs/jobgettransactions_l.h"
 #include "aqhbci/joblayer/job_l.h"
+#include "aqhbci/msglayer/message_l.h"
 #include "aqhbci/tan/tanmethod.h"
 
 #include <gwenhywfar/error.h>
@@ -687,6 +688,15 @@ int ZB_ListUsers(AB_BANKING *ab, ZB_USER_INFO *users, int maxUsers)
             copyString(users[count].bankCode, AB_User_GetBankCode(user));
             copyString(users[count].userId, AB_User_GetUserId(user));
             copyString(users[count].userName, AB_User_GetUserName(user));
+            copyString(users[count].customerId, AB_User_GetCustomerId(user));
+            copyString(users[count].server, AH_User_GetServerUrl(user) ? GWEN_Url_GetServer(AH_User_GetServerUrl(user)) : NULL);
+            users[count].hbciVersion = AH_User_GetHbciVersion(user);
+            users[count].tanMethod = AH_User_GetSelectedTanMethod(user);
+            users[count].tanMechanism = AH_User_GetSelectedTanInputMechanism(user);
+            users[count].hasSystemId = AH_User_GetSystemId(user) && *AH_User_GetSystemId(user) ? 1 : 0;
+            users[count].hasTanMedium = AH_User_GetTanMediumId(user) && *AH_User_GetTanMediumId(user) ? 1 : 0;
+            users[count].bpdVersion = AH_User_GetBpdVersion(user);
+            users[count].updVersion = AH_User_GetUpdVersion(user);
             count++;
             user = AB_User_List_Next(user);
         }
@@ -883,4 +893,9 @@ int ZB_DeleteUser(AB_BANKING *ab, uint32_t uid)
     }
     AB_Banking_EndUseProvider(ab, pro);
     return rv;
+}
+
+void ZB_SetMessageLogHook(void (*hook)(int received, const char *data, unsigned int size))
+{
+    AH_Msg_LogHook = hook;
 }

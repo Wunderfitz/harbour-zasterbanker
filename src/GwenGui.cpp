@@ -20,9 +20,12 @@
 #include "GwenGui.h"
 
 #include "BankingThread.h"
+#include "DebugLog.h"
 #include "FlickerCode.h"
+#include "LogMasker.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
 #include <QDebug>
 #include <QMap>
 #include <QRegExp>
@@ -31,7 +34,9 @@
 #include <aqbanking/banking.h>
 #include <gwenhywfar/db.h>
 #include <gwenhywfar/gui_be.h>
+#include <gwenhywfar/gwentime.h>
 #include <gwenhywfar/i18n.h>
+#include <gwenhywfar/logger.h>
 #include <gwenhywfar/ssl_cert_descr.h>
 
 #include <cstring>
@@ -80,6 +85,31 @@ const char APPROVAL_TEXT[] = "Your approval for this communication with your ban
                              "\n"
                              "Message from bank server regarding this process:\n"
                              "%s\n";
+
+// For the debug log; LogMasker takes out the login in AqBanking's token
+// names ("PIN_<bank code>_<login>") and in its texts.
+void log(const QString &text)
+{
+    DebugLog::write(DebugLog::App, text);
+}
+
+QString maskedToken(const QByteArray &token)
+{
+    return LogMasker::text(QString::fromUtf8(token));
+}
+
+const char *passwordStatusName(GWEN_GUI_PASSWORD_STATUS status)
+{
+    switch (status) {
+    case GWEN_Gui_PasswordStatus_Bad: return "rejected";
+    case GWEN_Gui_PasswordStatus_Unknown: return "unknown";
+    case GWEN_Gui_PasswordStatus_Ok: return "accepted";
+    case GWEN_Gui_PasswordStatus_Used: return "used";
+    case GWEN_Gui_PasswordStatus_Unused: return "unused";
+    case GWEN_Gui_PasswordStatus_Remove: return "to be removed";
+    }
+    return "?";
+}
 
 void wipe(QByteArray &data)
 {
@@ -200,6 +230,7 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
             buffer[pin.size()] = 0;
             remembered.value().usedByCommand = true;
             remembered.value().lastUsed = now();
+            log(QStringLiteral("PIN for %1 taken from memory").arg(maskedToken(tokenName)));
             return 0;
         }
     }
@@ -230,6 +261,18 @@ int GWENHYWFAR_CB getPassword(GWEN_GUI *, uint32_t flags, const char *token, con
         }
     }
 
+    if (DebugLog::isEnabled()) {
+        if (isTan) {
+            log(QStringLiteral("TAN asked for: TAN method %1, input mechanism %2, password method 0x%3, format %4, %5 to %6 characters")
+                .arg(methodParams ? GWEN_DB_GetIntValue(methodParams, "tanMethodId", 0, -1) : -1)
+                .arg(methodParams ? GWEN_DB_GetIntValue(methodParams, "tanMethod/tanInputMechanism", 0, -1) : -1)
+                .arg(static_cast<uint>(methodId), 0, 16)
+                .arg(QString::fromUtf8(methodParams ? GWEN_DB_GetCharValue(methodParams, "tanMethod/formatId", 0, "") : ""))
+                .arg(minLen).arg(maxLen - 1));
+        } else {
+            log(QStringLiteral("PIN asked for %1, %2 to %3 characters").arg(maskedToken(tokenName)).arg(minLen).arg(maxLen - 1));
+        }
+    }
     BankingThread::Response response = bankingThread->requestInteraction(
                 isTan ? BankingThread::TanInteraction : BankingThread::PinInteraction,
                 plainText(title), isTan ? styledText(text) : plainText(text), QStringList(), image, mimeType,
@@ -271,6 +314,7 @@ int GWENHYWFAR_CB setPasswordStatus(GWEN_GUI *, const char *token, const char *,
     if (!token) {
         return 0;
     }
+    log(QStringLiteral("AqBanking: PIN for %1 %2").arg(maskedToken(QByteArray(token)), QLatin1String(passwordStatusName(status))));
     auto pin = pins.find(QByteArray(token));
     if (pin == pins.end()) {
         return 0;
@@ -339,6 +383,8 @@ int GWENHYWFAR_CB messageBox(GWEN_GUI *, uint32_t, const char *title, const char
         QString message;
         const bool again = !lastApproval.isNull() && subject == lastApproval;
         lastApproval = subject;
+        log(QStringLiteral("App approval asked for (again: %1, text as expected: %2)")
+            .arg(again ? QStringLiteral("yes") : QStringLiteral("no"), understood ? QStringLiteral("yes") : QStringLiteral("no")));
         if (again) {
             message = QCoreApplication::translate("GwenGui", "Your bank has not received your confirmation yet.")
                     + QStringLiteral("<br><br>");
@@ -406,6 +452,7 @@ int GWENHYWFAR_CB inputBox(GWEN_GUI *, uint32_t, const char *title, const char *
 uint32_t GWENHYWFAR_CB showBox(GWEN_GUI *, uint32_t, const char *title, const char *text, uint32_t)
 {
     const QString message = plainText(text);
+    DebugLog::write(DebugLog::Progress, LogMasker::text(QStringLiteral("box: %1 - %2").arg(plainText(title), message)));
     bankingThread->reportProgress(message.isEmpty() ? plainText(title) : message);
     return nextBoxId++;
 }
@@ -417,6 +464,7 @@ void GWENHYWFAR_CB hideBox(GWEN_GUI *, uint32_t)
 uint32_t GWENHYWFAR_CB progressStart(GWEN_GUI *, uint32_t, const char *title, const char *, uint64_t, uint32_t)
 {
     const QString message = plainText(title);
+    DebugLog::write(DebugLog::Progress, LogMasker::text(QStringLiteral("start: ") + message));
     if (!message.isEmpty()) {
         bankingThread->reportProgress(message);
     }
@@ -436,6 +484,8 @@ int GWENHYWFAR_CB progressSetTotal(GWEN_GUI *, uint32_t, uint64_t)
 int GWENHYWFAR_CB progressLog(GWEN_GUI *, uint32_t, GWEN_LOGGER_LEVEL level, const char *text)
 {
     const QString message = plainText(text);
+    // every level: AqBanking's info lines say what it is doing
+    DebugLog::write(DebugLog::Progress, LogMasker::text(QStringLiteral("%1: %2").arg(QLatin1String(GWEN_Logger_Level2Name(level)), message)));
     if (level <= GWEN_LoggerLevel_Error) {
         bankingThread->reportError(message);
     } else if (level <= GWEN_LoggerLevel_Notice) {
@@ -458,6 +508,14 @@ int GWENHYWFAR_CB progressEnd(GWEN_GUI *, uint32_t)
 int GWENHYWFAR_CB checkCert(GWEN_GUI *, const GWEN_SSLCERTDESCR *cert, GWEN_SYNCIO *, uint32_t)
 {
     const uint32_t status = GWEN_SslCertDescr_GetStatusFlags(cert);
+    if (DebugLog::isEnabled()) {
+        const GWEN_TIME *notAfter = GWEN_SslCertDescr_GetNotAfter(cert);
+        log(QStringLiteral("Server certificate for \"%1\" (%2), valid until %3, SHA-1 %4: status 0x%5 %6")
+            .arg(QString::fromUtf8(GWEN_SslCertDescr_GetCommonName(cert)), QString::fromUtf8(GWEN_SslCertDescr_GetOrganizationName(cert)),
+                 notAfter ? QDateTime::fromTime_t(static_cast<uint>(GWEN_Time_toTime_t(notAfter))).toUTC().toString(Qt::ISODate) : QStringLiteral("?"),
+                 QString::fromUtf8(GWEN_SslCertDescr_GetFingerPrintSha1(cert)))
+            .arg(status, 0, 16).arg(QString::fromUtf8(GWEN_SslCertDescr_GetStatusText(cert))));
+    }
     if (status == GWEN_SSL_CERT_FLAGS_OK) {
         return 0;
     }
@@ -474,6 +532,11 @@ int GWENHYWFAR_CB checkCert(GWEN_GUI *, const GWEN_SSLCERTDESCR *cert, GWEN_SYNC
  */
 int GWENHYWFAR_CB logHook(GWEN_GUI *, const char *domain, GWEN_LOGGER_LEVEL priority, const char *text)
 {
+    if (DebugLog::isEnabled()) {
+        DebugLog::write(DebugLog::Library, LogMasker::text(QStringLiteral("%1 %2: %3").arg(QString::fromUtf8(domain ? domain : ""),
+                                                                                          QLatin1String(GWEN_Logger_Level2Name(priority)),
+                                                                                          QString::fromUtf8(text ? text : "").trimmed())));
+    }
 #ifdef QT_DEBUG
     qDebug() << "[" << domain << priority << "]" << text;
 #else

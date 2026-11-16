@@ -51,8 +51,6 @@ class Banking : public QObject
     Q_PROPERTY(bool busy READ busy NOTIFY busyChanged)
     Q_PROPERTY(Operation operation READ operation NOTIFY busyChanged)
     Q_PROPERTY(QString progressText READ progressText NOTIFY progressTextChanged)
-    /** What the bank answered to the last transaction fetch: its result codes with their texts. The bank's text: plain text only. */
-    Q_PROPERTY(QStringList bankMessages READ bankMessages NOTIFY bankMessagesChanged)
     /** Bank access ID (as text) to the time its remembered PIN is wiped, in milliseconds since the epoch. */
     Q_PROPERTY(QVariantMap pinDeadlines READ pinDeadlines NOTIFY pinDeadlinesChanged)
     Q_PROPERTY(AccountModel *accounts READ accounts CONSTANT)
@@ -98,7 +96,6 @@ public:
     bool busy() const;
     Operation operation() const;
     QString progressText() const;
-    QStringList bankMessages() const;
     QVariantMap pinDeadlines() const;
     AccountModel *accounts();
     TransactionModel *transactions();
@@ -134,7 +131,6 @@ signals:
     void stateChanged();
     void busyChanged();
     void progressTextChanged();
-    void bankMessagesChanged();
     void pinDeadlinesChanged();
     void interactionRequested(int interactionId, int type, const QString &title, const QString &text,
                               const QStringList &choices, const QString &imageUrl, const QString &presetText,
@@ -150,7 +146,6 @@ private slots:
     void handleCommandStarted(int command);
     void handleCommandFinished(int command, bool success, const QString &message);
     void handleProgress(const QString &text);
-    void handleBankMessages(const QStringList &messages);
     void handleInteractionRequested(int interactionId, int type, const QString &title, const QString &text,
                                     const QStringList &choices, const QImage &image, const QString &presetText,
                                     const QString &flickerCode, bool digitsOnly);
@@ -171,7 +166,6 @@ private:
     QString currentStateMessage;
     Operation currentOperation;
     QString currentProgressText;
-    QStringList currentBankMessages;
     QVariantMap currentPinDeadlines;
 };
 

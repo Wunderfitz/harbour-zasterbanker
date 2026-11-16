@@ -1,6 +1,6 @@
 diff -ru a/src/libs/aqbanking/banking.c b/src/libs/aqbanking/banking.c
---- aqbanking-6.9.2.orig/src/libs/aqbanking/banking.c	2026-11-02 22:17:51.683543186 +0100
-+++ aqbanking-6.9.2/src/libs/aqbanking/banking.c	2026-11-02 22:17:51.707285277 +0100
+--- aqbanking-6.9.2.orig/src/libs/aqbanking/banking.c	2026-11-16 23:19:45.081776679 +0100
++++ aqbanking-6.9.2/src/libs/aqbanking/banking.c	2026-11-16 23:19:45.085303939 +0100
 @@ -437,6 +437,11 @@
    int rv;
    FILE *f;
@@ -14,17 +14,49 @@ diff -ru a/src/libs/aqbanking/banking.c b/src/libs/aqbanking/banking.c
    GWEN_Buffer_AppendString(pathBuffer, ab->dataDir);
    GWEN_Buffer_AppendString(pathBuffer, GWEN_DIR_SEPARATOR_S "jobs" GWEN_DIR_SEPARATOR_S);
 diff -ru a/src/libs/plugins/backends/aqhbci/msglayer/message.c b/src/libs/plugins/backends/aqhbci/msglayer/message.c
---- aqbanking-6.9.2.orig/src/libs/plugins/backends/aqhbci/msglayer/message.c	2026-11-02 22:17:51.688667137 +0100
-+++ aqbanking-6.9.2/src/libs/plugins/backends/aqhbci/msglayer/message.c	2026-11-02 22:17:51.707484459 +0100
-@@ -1668,6 +1668,11 @@
+--- aqbanking-6.9.2.orig/src/libs/plugins/backends/aqhbci/msglayer/message.c	2026-11-16 23:19:45.073027675 +0100
++++ aqbanking-6.9.2/src/libs/plugins/backends/aqhbci/msglayer/message.c	2026-11-16 23:19:57.131030672 +0100
+@@ -1649,6 +1649,11 @@
+ 
+ 
+ 
++/* Zaster Banker: where FinTS messages go instead of the disk, see AH_Msg_LogMessage() */
++AH_MSG_LOG_HOOK AH_Msg_LogHook=NULL;
++
++
++
+ /* --------------------------------------------------------------- FUNCTION */
+ void AH_Msg_LogMessage(AH_MSG *msg,
+                        GWEN_BUFFER *buf,
+@@ -1668,6 +1673,15 @@
    assert(msg);
    assert(buf);
  
 +#ifndef AQBANKING_ENABLE_DISK_LOGS
-+  /* Zaster Banker: never write FinTS messages (contain account data) to disk unencrypted */
++  /* Zaster Banker: never write FinTS messages (contain account data) to disk unencrypted.
++   * The application may take each message as it goes over the wire (crypt set: sent as
++   * encoded, or received before decoding), to keep it in memory. */
++  if (crypt && AH_Msg_LogHook)
++    AH_Msg_LogHook(rec, GWEN_Buffer_GetStart(buf), GWEN_Buffer_GetUsedBytes(buf));
 +  return;
 +#endif
 +
    logFile=AH_Dialog_GetLogFile(msg->dialog);
    if (!logFile) {
      DBG_ERROR(AQHBCI_LOGDOMAIN,
+diff -ru a/src/libs/plugins/backends/aqhbci/msglayer/message_l.h b/src/libs/plugins/backends/aqhbci/msglayer/message_l.h
+--- aqbanking-6.9.2.orig/src/libs/plugins/backends/aqhbci/msglayer/message_l.h	2026-11-16 23:19:45.072773713 +0100
++++ aqbanking-6.9.2/src/libs/plugins/backends/aqhbci/msglayer/message_l.h	2026-11-16 23:19:57.131223258 +0100
+@@ -117,6 +117,12 @@
+ 
+ 
+ GWEN_BUFFER *AH_Msg_GetOrigBuffer(AH_MSG *hmsg);
++
++/* Zaster Banker: called with every FinTS message sent (received 0) or received (1),
++ * complete as it goes over the wire, if set; on the thread running the dialog. */
++typedef void (*AH_MSG_LOG_HOOK)(int received, const char *data, unsigned int size);
++extern AH_MSG_LOG_HOOK AH_Msg_LogHook;
++
+ void AH_Msg_LogMessage(AH_MSG *msg,
+                        GWEN_BUFFER *buf,
+                        int rec,

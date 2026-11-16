@@ -19,6 +19,11 @@ PKGCONFIG += sailfishsecrets
 # go into the package. Shared with the tests (tests/engine/engine-tests.pro).
 include(3rdparty/aqbanking.pri)
 
+# For the debug log, which names the build; the spec passes both.
+isEmpty(ZB_VERSION): ZB_VERSION = unknown
+!isEmpty(ZB_RELEASE): ZB_VERSION = $${ZB_VERSION}-$${ZB_RELEASE}
+DEFINES += ZB_VERSION=\\\"$${ZB_VERSION}\\\"
+
 SOURCES += \
     src/main.cpp \
     src/AccountModel.cpp \
@@ -26,12 +31,14 @@ SOURCES += \
     src/AqHbciShim.c \
     src/Banking.cpp \
     src/BankingThread.cpp \
+    src/DebugLog.cpp \
     src/EncryptedConfigStore.cpp \
     src/FlickerCode.cpp \
     src/GwenGui.cpp \
     src/InstituteSearch.cpp \
     src/InstituteSearchWorker.cpp \
     src/KeyStore.cpp \
+    src/LogMasker.cpp \
     src/StatementReader.cpp \
     src/TanImageProvider.cpp \
     src/TransactionModel.cpp \
@@ -43,6 +50,7 @@ HEADERS += \
     src/AqHbciShim.h \
     src/Banking.h \
     src/BankingThread.h \
+    src/DebugLog.h \
     src/EncryptedConfigStore.h \
     src/FinTsRegistration.h \
     src/FlickerCode.h \
@@ -50,6 +58,7 @@ HEADERS += \
     src/InstituteSearch.h \
     src/InstituteSearchWorker.h \
     src/KeyStore.h \
+    src/LogMasker.h \
     src/StatementReader.h \
     src/TanImageProvider.h \
     src/TransactionModel.h \
@@ -64,13 +73,14 @@ DISTFILES += \
     qml/components/FlickerCode.qml \
     qml/js/Format.js \
     qml/pages/AboutPage.qml \
-    qml/pages/BankMessagesPage.qml \
     qml/pages/CredentialsDialog.qml \
+    qml/pages/DebugLogPage.qml \
     qml/pages/DepotPage.qml \
     qml/pages/InstituteSearchPage.qml \
     qml/pages/MessageDialog.qml \
     qml/pages/OverviewPage.qml \
     qml/pages/PinDialog.qml \
+    qml/pages/SettingsPage.qml \
     qml/pages/SetupPage.qml \
     qml/pages/TanDialog.qml \
     qml/pages/TanMethodDialog.qml \

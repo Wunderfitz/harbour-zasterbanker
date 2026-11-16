@@ -21,6 +21,7 @@
 #define BANKINGTHREAD_H
 
 #include <QByteArray>
+#include <QElapsedTimer>
 #include <QHash>
 #include <QImage>
 #include <QMutex>
@@ -135,8 +136,6 @@ signals:
     void accountsChanged(const QVariantList &accounts);
     void balancesFetched(const QVariantList &balances);
     void transactionsFetched(uint accountId, const QVariantList &transactions);
-    /* What the bank answered to a transaction fetch, line by line: its result codes with their texts. */
-    void bankMessagesReported(const QStringList &messages);
     void holdingsFetched(uint accountId, const QVariantList &holdings);
     void commandStarted(int command);
     void commandFinished(int command, bool success, const QString &message);
@@ -178,9 +177,8 @@ private:
     /* Asks whether to remove the accounts the bank no longer lists, and does so. */
     void offerToRemoveAccounts(const QList<uint32_t> &accountIds);
     void executeChangeTanMethod(const Command &command);
-    /* The bank's result lines are kept from the first call to the second, and handed to the UI then. */
-    void startCollectingBankMessages();
-    void reportBankMessages();
+    /* Emits commandFinished(), and has the debug log say so. */
+    void finishCommand(int command, bool success, const QString &message);
     void executeResetData();
     /*
      * At setup, the user chooses if there is more than one method; when
@@ -189,7 +187,11 @@ private:
      */
     bool chooseTanMethod(uint32_t userUid, bool change = false);
     bool chooseTanMedium(uint32_t userUid, const QString &current = QString());
-    void collectBankMessage(const QString &text);
+    /* For the debug log: AqBanking's log levels, and what a command is about. */
+    void applyLogLevels();
+    void logCommand(const Command &command);
+    void logBankAccess(uint32_t uid);
+    void logAccount(uint32_t accountId);
     /* Emits pinsChanged() if the set of accesses changed, or always if force is set. */
     void publishPins(bool force);
     void publishAccounts();
@@ -218,9 +220,8 @@ private:
     GWEN_GUI *gui;
     EncryptedConfigStore *configStore;
     QString lastError;
-    /* The bank's result lines are kept while this is set, in bankMessages. */
-    bool collectingBankMessages;
-    QStringList bankMessages;
+    /* How long the running command takes, for the debug log. */
+    QElapsedTimer commandTimer;
     /* What pinsChanged() said last. */
     QVariantMap publishedPins;
     /* The last balance of each account, kept in the encrypted store, by account ID. */

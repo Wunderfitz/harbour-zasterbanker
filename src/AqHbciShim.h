@@ -64,6 +64,17 @@ typedef struct {
     char bankCode[ZB_NAME_LENGTH];
     char userId[ZB_NAME_LENGTH];
     char userName[ZB_NAME_LENGTH];
+    /* The rest only for the debug log: */
+    char customerId[ZB_NAME_LENGTH];
+    char server[ZB_NAME_LENGTH];
+    int hbciVersion;
+    /* As in ZB_TAN_METHOD, 0 if none was selected */
+    int tanMethod;
+    int tanMechanism;
+    int hasSystemId;
+    int hasTanMedium;
+    int bpdVersion;
+    int updVersion;
 } ZB_USER_INFO;
 
 int ZB_AddPinTanUser(AB_BANKING *ab, const char *bankCode, const char *userId, const char *customerId,
@@ -181,6 +192,14 @@ int ZB_EnsureAccountBic(AB_BANKING *ab, uint32_t accountUid);
 
 /* Deletes the user together with all of its accounts. */
 int ZB_DeleteUser(AB_BANKING *ab, uint32_t uid);
+
+/*
+ * Has AqBanking call hook with every FinTS message it sends (received 0) or
+ * receives (1), complete as it goes over the wire, PIN and TAN included; NULL
+ * stops it. AqBanking only has this hook through its no-disk-logs patch, which
+ * writes no message to disk. Called on the thread running the dialog.
+ */
+void ZB_SetMessageLogHook(void (*hook)(int received, const char *data, unsigned int size));
 
 #ifdef __cplusplus
 }
